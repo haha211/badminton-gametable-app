@@ -11,7 +11,7 @@ export default function PlayerManager({
   onOpenOCR
 }) {
   const [newName, setNewName] = useState('');
-  const [newGender, setNewGender] = useState('M'); // 기본 남성
+  const [newGender, setNewGender] = useState('M');
   const [newTier, setNewTier] = useState('B');
 
   const handleAdd = (e) => {
@@ -56,9 +56,9 @@ export default function PlayerManager({
   };
 
   const handleAdjustRestCount = (player, delta) => {
-    const current = player.consecutiveRest || 0;
+    const current = player.totalRestCount || player.consecutiveRest || 0;
     const nextVal = Math.max(0, current + delta);
-    if (onUpdatePlayer) onUpdatePlayer(player.id, { consecutiveRest: nextVal });
+    if (onUpdatePlayer) onUpdatePlayer(player.id, { totalRestCount: nextVal, consecutiveRest: nextVal });
   };
 
   const handleDeleteAll = () => {
@@ -115,7 +115,7 @@ export default function PlayerManager({
         </div>
       </div>
 
-      {/* Input Bar (성별 선택 추가) */}
+      {/* Input Bar */}
       <form onSubmit={handleAdd} className="tds-card p-4 flex flex-col sm:flex-row items-center gap-3 border border-[#e5e8eb]">
         <input
           type="text"
@@ -125,7 +125,6 @@ export default function PlayerManager({
           className="w-full sm:flex-1 px-4 py-3 bg-[#f2f4f6] border border-[#e5e8eb] rounded-xl text-sm text-[#191f28] placeholder-[#8b95a1] outline-none focus:border-[#3182f6] transition font-semibold"
         />
 
-        {/* Gender Selector */}
         <div className="flex items-center gap-1 bg-[#f2f4f6] p-1.5 rounded-xl border border-[#e5e8eb] w-full sm:w-auto justify-center whitespace-nowrap">
           <button
             type="button"
@@ -151,7 +150,6 @@ export default function PlayerManager({
           </button>
         </div>
 
-        {/* Tier Selector */}
         <div className="flex items-center gap-1 bg-[#f2f4f6] p-1.5 rounded-xl border border-[#e5e8eb] w-full sm:w-auto justify-center whitespace-nowrap">
           {['A', 'B', 'C'].map((tier) => (
             <button
@@ -206,7 +204,7 @@ export default function PlayerManager({
             const tier = player.tier || 'B';
             const gender = player.gender || 'M';
             const gamesPlayed = player.gamesPlayed || 0;
-            const consecutiveRest = player.consecutiveRest || 0;
+            const totalRest = player.totalRestCount || player.consecutiveRest || 0;
 
             const badgeBg = tier === 'A' ? 'bg-[#e8f3ff] text-[#1b64da]' : tier === 'B' ? 'bg-amber-100 text-amber-800' : 'bg-gray-200 text-gray-700';
 
@@ -235,7 +233,6 @@ export default function PlayerManager({
                   </button>
 
                   <div className="flex items-center gap-1">
-                    {/* Gender Toggle Badge */}
                     <button
                       onClick={() => handleGenderToggle(player)}
                       className={`px-2 py-1 rounded-xl font-bold text-xs flex items-center gap-0.5 transition ${
@@ -246,7 +243,6 @@ export default function PlayerManager({
                       <span>{gender === 'F' ? '여 ♀️' : '남 ♂️'}</span>
                     </button>
 
-                    {/* Tier Badge */}
                     <button
                       onClick={() => handleTierCycle(player)}
                       className={`px-2.5 py-1 rounded-xl font-bold text-xs flex items-center gap-1 ${badgeBg} hover:scale-105 transition whitespace-nowrap`}
@@ -322,7 +318,7 @@ export default function PlayerManager({
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-amber-600 whitespace-nowrap">💤 휴식 수</span>
+                    <span className="font-bold text-amber-600 whitespace-nowrap">💤 총 휴식 수</span>
                     <div className="flex items-center gap-1.5 whitespace-nowrap">
                       <button
                         onClick={() => handleAdjustRestCount(player, -1)}
@@ -334,10 +330,10 @@ export default function PlayerManager({
                       <input
                         type="number"
                         min="0"
-                        value={consecutiveRest}
+                        value={totalRest}
                         onChange={(e) => {
                           const val = parseInt(e.target.value, 10);
-                          if (!isNaN(val)) onUpdatePlayer(player.id, { consecutiveRest: Math.max(0, val) });
+                          if (!isNaN(val)) onUpdatePlayer(player.id, { totalRestCount: Math.max(0, val), consecutiveRest: Math.max(0, val) });
                         }}
                         className="w-8 text-center font-extrabold text-amber-600 bg-transparent outline-none whitespace-nowrap"
                       />

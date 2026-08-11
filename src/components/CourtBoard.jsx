@@ -23,7 +23,6 @@ export default function CourtBoard({
   const safeNextCourts = Array.isArray(nextCourts) ? nextCourts : [];
   const safeResting = Array.isArray(restingPlayers) ? restingPlayers : [];
 
-  // 현재 코트들에서 경기를 치르고 있는 모든 선수 목록
   const allActivePlayingPlayers = safeCourts.flatMap((c) => {
     const t1 = Array.isArray(c.team1) ? c.team1 : [];
     const t2 = Array.isArray(c.team2) ? c.team2 : [];
@@ -296,7 +295,7 @@ export default function CourtBoard({
         </div>
       )}
 
-      {/* SECTION 4: RESTING PLAYERS */}
+      {/* SECTION 4: RESTING PLAYERS (누적 총 휴식 횟수 표기) */}
       {safeResting.length > 0 && (
         <div className="tds-card p-3.5 sm:p-5 border border-[#e5e8eb] overflow-hidden">
           <div className="flex items-center justify-between mb-2.5">
@@ -312,15 +311,17 @@ export default function CourtBoard({
           <div className="flex flex-wrap gap-1.5">
             {safeResting.map((p) => {
               if (!p) return null;
+              const totalRest = p.totalRestCount || p.consecutiveRest || 0;
+
               return (
-                <div key={p.id || Math.random()} className="flex items-center gap-1 px-2 py-1 rounded-xl bg-[#f2f4f6] border border-[#e5e8eb] text-xs whitespace-nowrap">
+                <div key={p.id || Math.random()} className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#f2f4f6] border border-[#e5e8eb] text-xs whitespace-nowrap">
                   <span className={`w-3.5 h-3.5 rounded font-bold text-[8px] flex items-center justify-center text-white flex-shrink-0 ${p.gender === 'F' ? 'bg-rose-500' : 'bg-[#3182f6]'}`}>
                     {p.gender === 'F' ? '여' : '남'}
                   </span>
                   <span className="font-bold text-[#191f28]">{p.name || '무명'} ({p.tier || 'B'})</span>
-                  <span className="text-[10px] font-bold text-[#3182f6]">🎮{p.gamesPlayed || 0}</span>
-                  <span className="text-[10px] font-bold text-amber-600">
-                    💤{p.consecutiveRest || 0}회 쉼
+                  <span className="text-[10px] font-bold text-[#3182f6]">🎮{p.gamesPlayed || 0}게임</span>
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md">
+                    💤 총 {totalRest}회 쉼
                   </span>
                 </div>
               );
@@ -329,7 +330,7 @@ export default function CourtBoard({
         </div>
       )}
 
-      {/* PLAYER SWAP MODAL (경기 중인 선수 상호 코트 교체) */}
+      {/* PLAYER SWAP MODAL */}
       {swapSourcePlayer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
           <div className="tds-card w-full max-w-md border border-[#e5e8eb] shadow-2xl overflow-hidden flex flex-col bg-white">
@@ -398,14 +399,14 @@ export default function CourtBoard({
   );
 }
 
-// TOSS COURT PLAYER CHIP (선수 교체 버튼 추가)
+// TOSS COURT PLAYER CHIP
 function TossCourtPlayerChip({ player, onTriggerSwap }) {
   if (!player) return null;
   const name = player.name || '무명';
   const tier = player.tier || 'B';
   const gender = player.gender || 'M';
   const gamesPlayed = player.gamesPlayed || 0;
-  const consecutiveRest = player.consecutiveRest || 0;
+  const totalRest = player.totalRestCount || player.consecutiveRest || 0;
 
   const badgeBg = tier === 'A' ? 'bg-[#e8f3ff] text-[#1b64da]' : tier === 'B' ? 'bg-amber-100 text-amber-800' : 'bg-gray-200 text-gray-700';
 
@@ -433,7 +434,6 @@ function TossCourtPlayerChip({ player, onTriggerSwap }) {
             </span>
           </div>
 
-          {/* Swap Button Icon */}
           <button
             onClick={onTriggerSwap}
             className="p-1 rounded bg-[#e8f3ff] text-[#1b64da] hover:bg-blue-200 transition flex-shrink-0 ml-1"
@@ -445,7 +445,7 @@ function TossCourtPlayerChip({ player, onTriggerSwap }) {
         <div className="text-[9px] text-[#4e5968] font-bold mt-0.5 flex items-center gap-1 whitespace-nowrap overflow-hidden">
           <span className="text-[#3182f6] whitespace-nowrap">🎮{gamesPlayed}</span>
           <span className="text-[#8b95a1]">·</span>
-          <span className="text-amber-600 whitespace-nowrap">💤{consecutiveRest}</span>
+          <span className="text-amber-600 whitespace-nowrap">💤{totalRest}</span>
         </div>
       </div>
     </div>

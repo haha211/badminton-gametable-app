@@ -127,6 +127,7 @@ export default function App() {
     syncSession(players, filteredActive, predicted, restingPlayers, history, nextEnabled);
   };
 
+  // 대진표 섞기 (쉬는 횟수 누적 보존 픽스)
   const handleGenerateMatches = (overrideCourts = enabledCourts) => {
     const activeList = players.filter((p) => p.isPresent !== false);
     if (activeList.length < 4) {
@@ -144,6 +145,7 @@ export default function App() {
       result.courts.flatMap((c) => [...c.team1, ...c.team2].map((p) => p.id))
     );
 
+    // 선수별 경기수 및 쉬는 횟수 누적 계산 (+1 정확히 누적)
     const updatedPlayers = players.map((p) => {
       if (p.isPresent === false) return p;
 
@@ -164,15 +166,20 @@ export default function App() {
       }
     });
 
+    // 업데이트된 선수 객체들을 기반으로 쉬고 있는 인원 추출 (누적 반영된 객체 사용)
+    const updatedRestingPlayers = updatedPlayers.filter(
+      (p) => p.isPresent !== false && !playingPlayerIds.has(p.id)
+    );
+
     const predicted = predictNextRound(updatedPlayers, result.courts, overrideCourts);
 
     setPlayers(updatedPlayers);
     setActiveCourts(result.courts);
-    setRestingPlayers(result.restingPlayers);
+    setRestingPlayers(updatedRestingPlayers);
     setNextCourts(predicted);
     setActiveTab('courts');
 
-    syncSession(updatedPlayers, result.courts, predicted, result.restingPlayers, history, overrideCourts);
+    syncSession(updatedPlayers, result.courts, predicted, updatedRestingPlayers, history, overrideCourts);
   };
 
   const handleRotateSingleCourt = (courtId) => {
@@ -217,26 +224,42 @@ export default function App() {
       updatedCourts.push(newCourtData);
     }
 
-    const newFourIds = new Set(fourPlayers.map((p) => p.id));
+    const allPlayingPlayerIds = new Set(
+      updatedCourts.flatMap((c) => [...(c.team1 || []), ...(c.team2 || [])].map((p) => p.id))
+    );
+
     const updatedPlayers = players.map((p) => {
-      if (newFourIds.has(p.id)) {
+      if (p.isPresent === false) return p;
+
+      if (allPlayingPlayerIds.has(p.id)) {
         return {
           ...p,
           gamesPlayed: (p.gamesPlayed || 0) + 1,
           consecutivePlayed: (p.consecutivePlayed || 0) + 1,
           consecutiveRest: 0,
         };
+      } else {
+        return {
+          ...p,
+          totalRestCount: (p.totalRestCount || 0) + 1,
+          consecutiveRest: (p.consecutiveRest || 0) + 1,
+          consecutivePlayed: 0,
+        };
       }
-      return p;
     });
+
+    const updatedRestingPlayers = updatedPlayers.filter(
+      (p) => p.isPresent !== false && !allPlayingPlayerIds.has(p.id)
+    );
 
     const predicted = predictNextRound(updatedPlayers, updatedCourts, enabledCourts);
 
     setPlayers(updatedPlayers);
     setActiveCourts(updatedCourts);
+    setRestingPlayers(updatedRestingPlayers);
     setNextCourts(predicted);
 
-    syncSession(updatedPlayers, updatedCourts, predicted, restingPlayers, history, enabledCourts);
+    syncSession(updatedPlayers, updatedCourts, predicted, updatedRestingPlayers, history, enabledCourts);
   };
 
   const handleConfirmManualAssign = (courtId, team1, team2) => {
@@ -280,7 +303,6 @@ export default function App() {
     syncSession(updatedPlayers, updatedCourts, predicted, restingPlayers, history, enabledCourts);
   };
 
-  // 경기 출전 중인 두 선수의 코트/팀 위치를 맞교체하는 기능
   const handleSwapActivePlayers = (p1Id, p2Id) => {
     let p1Obj = null;
     let p2Obj = null;
