@@ -9,19 +9,18 @@ export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       realtime: {
         params: {
-          eventsPerSecond: 20,
+          eventsPerSecond: 30,
         },
-      },
-      auth: {
-        persistSession: false,
       },
     })
   : null;
 
 const SESSION_ROOM_ID = 'default_badminton_room';
 
+let globalChannel = null;
+
 /**
- * Supabase DB에서 최신 대진표 세션 데이터 가져오기 (없으면 최초 자동 생성)
+ * Supabase DB에서 최신 대진표 세션 데이터 가져오기
  */
 export async function fetchBadmintonSession(fallbackSession) {
   if (!isSupabaseConfigured || !supabase) return null;
@@ -38,7 +37,6 @@ export async function fetchBadmintonSession(fallbackSession) {
       return null;
     }
 
-    // 만약 DB에 아직 생성된 방 세션이 없으면 현재 기기의 세션을 DB 최초 1회 생성
     if (!data && fallbackSession) {
       await updateBadmintonSession(fallbackSession);
       return fallbackSession;
@@ -52,13 +50,14 @@ export async function fetchBadmintonSession(fallbackSession) {
 }
 
 /**
- * Supabase DB에 세션 데이터 실시간 저장 (upsert)
+ * Supabase DB 저장 및 Broadcast 웹소켓으로 다른 모든 기기에 0.1초 실시간 전송
  */
 export async function updateBadmintonSession(sessionData) {
   if (!isSupabaseConfigured || !supabase) return;
 
   try {
-    const { error } = await supabase
+    // 1. Supabase DB에 세션 저장
+    await supabase
       .from('badminton_sessions')
       .upsert(
         {
@@ -69,8 +68,13 @@ export async function updateBadmintonSession(sessionData) {
         { onConflict: 'room_id' }
       );
 
-    if (error) {
-      console.error('Supabase update error:', error);
+    // 2. Broadcast 웹소켓으로 연결된 모든 기기(PC, 폰)에 0.1초 즉시 전송
+    if (globalChannel) {
+      globalChannel.send({
+        type: 'broadcast',
+        event: 'session_update',
+        payload: sessionData,
+      });
     }
   } catch (err) {
     console.error('Supabase update exception:', err);
@@ -78,45 +82,52 @@ export async function updateBadmintonSession(sessionData) {
 }
 
 /**
- * Supabase Realtime 채널 실시간 구독
+ * Supabase Broadcast + DB Realtime 2중 실시간 리스너 구독
  */
 export function subscribeToBadmintonSession(onSessionUpdate) {
   if (!isSupabaseConfigured || !supabase) return () => {};
 
-  let channel = null;
+  if (globalChannel) {
+    supabase.removeChannel(globalChannel);
+  }
 
-  const initChannel = () => {
-    if (channel) {
-      supabase.removeChannel(channel);
-    }
+  globalChannel = supabase.channel('badminton_live_room', {
+    config: {
+      broadcast: { self: false },
+    },
+  });
 
-    channel = supabase
-      .channel(`badminton_realtime_global`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'badminton_sessions',
-        },
-        (payload) => {
-          if (payload.new && payload.new.session_data) {
-            onSessionUpdate(payload.new.session_data);
-          }
+  globalChannel
+    // 1. Broadcast 웹소켓 실시간 0.1초 메세지 수신
+    .on('broadcast', { event: 'session_update' }, (payload) => {
+      if (payload && payload.payload) {
+        onSessionUpdate(payload.payload);
+      }
+    })
+    // 2. DB Postgres Changes 동기화 수신
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'badminton_sessions',
+      },
+      (payload) => {
+        if (payload.new && payload.new.session_data) {
+          onSessionUpdate(payload.new.session_data);
         }
-      )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('⚡ Global Realtime Sync Active!');
-        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          setTimeout(initChannel, 2000);
-        }
-      });
-  };
-
-  initChannel();
+      }
+    )
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log('⚡ 0.1초 강력한 Realtime Broadcast 채널 연결 성공!');
+      }
+    });
 
   return () => {
-    if (channel) supabase.removeChannel(channel);
+    if (globalChannel) {
+      supabase.removeChannel(globalChannel);
+      globalChannel = null;
+    }
   };
 }
