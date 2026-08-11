@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Users, RefreshCw, Upload, Share2, Sparkles, Power, RotateCcw, Menu, X, Wifi, Shuffle } from 'lucide-react';
+import { Trophy, Users, RefreshCw, Upload, Share2, Sparkles, Power, RotateCcw, Menu, X, Wifi, Shuffle, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 export default function Header({
   activeTab,
@@ -13,7 +13,9 @@ export default function Header({
   onResetAllData,
   activePlayersCount,
   totalPlayersCount,
-  isSupabaseConfigured = false
+  isSupabaseConfigured = false,
+  dbStatus = 'checking',
+  dbErrorMessage = ''
 }) {
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -47,7 +49,7 @@ export default function Header({
         }`}
       >
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-1.5 min-w-0">
-          {/* Logo & Title (모바일 잘림 100% 방지) */}
+          {/* Logo & Title */}
           <div className="flex items-center space-x-1.5 min-w-0 flex-1 overflow-hidden">
             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#3182f6] flex items-center justify-center shadow-md shadow-blue-500/20 flex-shrink-0">
               <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white stroke-[2.5]" />
@@ -57,11 +59,18 @@ export default function Header({
                 배드민턴 게임판
               </h1>
               {isSupabaseConfigured ? (
-                <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-100 text-emerald-800 rounded-full whitespace-nowrap flex items-center gap-0.5 flex-shrink-0">
-                  <Wifi className="w-2.5 h-2.5 animate-pulse text-emerald-600" />
-                  <span className="hidden sm:inline">1초 실시간 동기화</span>
-                  <span className="sm:hidden">실시간</span>
-                </span>
+                dbStatus === 'ok' ? (
+                  <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-100 text-emerald-800 rounded-full whitespace-nowrap flex items-center gap-0.5 flex-shrink-0" title="Supabase DB 실시간 정상 작동 중">
+                    <Wifi className="w-2.5 h-2.5 animate-pulse text-emerald-600" />
+                    <span className="hidden sm:inline">실시간 연동 성공</span>
+                    <span className="sm:hidden">연동 됨</span>
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 text-[9px] font-bold bg-rose-100 text-rose-800 rounded-full whitespace-nowrap flex items-center gap-0.5 flex-shrink-0" title={dbErrorMessage || 'DB 연동 에러'}>
+                    <AlertTriangle className="w-2.5 h-2.5 text-rose-600" />
+                    <span className="truncate max-w-[90px] sm:max-w-[150px]">DB에러: {dbErrorMessage || '연동 실패'}</span>
+                  </span>
+                )
               ) : (
                 <span className="px-1.5 py-0.5 text-[9px] font-bold bg-[#e8f3ff] text-[#1b64da] rounded-full whitespace-nowrap flex-shrink-0">
                   PRO
@@ -70,9 +79,8 @@ export default function Header({
             </div>
           </div>
 
-          {/* Desktop Controls (PC View) */}
+          {/* Desktop Controls */}
           <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
-            {/* Court Switches */}
             <div className="flex items-center bg-[#f2f4f6] p-1 rounded-xl border border-[#e5e8eb] text-xs gap-1 whitespace-nowrap">
               <span className="px-1.5 text-[#4e5968] font-bold text-[11px] flex items-center gap-1 whitespace-nowrap">
                 <Power className="w-3.5 h-3.5 text-[#3182f6]" /> 코트:
@@ -129,7 +137,7 @@ export default function Header({
             </button>
           </div>
 
-          {/* Mobile Right Bar (햄버거 버튼 잘림 방지 flex-shrink-0) */}
+          {/* Mobile Right Bar */}
           <div className="flex items-center gap-1 lg:hidden flex-shrink-0">
             <button
               onClick={onGenerateMatches}
@@ -190,7 +198,11 @@ export default function Header({
           </div>
 
           <div className="text-[11px] text-[#8b95a1] hidden sm:block font-medium whitespace-nowrap ml-4">
-            {isSupabaseConfigured ? '⚡ 1초 실시간 동기화 가동' : '🔒 새로고침 보존'}
+            {isSupabaseConfigured
+              ? dbStatus === 'ok'
+                ? '⚡ 1초 실시간 연동 가동'
+                : `⚠️ ${dbErrorMessage || 'DB 연동 오류'}`
+              : '🔒 새로고침 보존'}
           </div>
         </div>
 

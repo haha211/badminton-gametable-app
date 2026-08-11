@@ -14,6 +14,8 @@ import {
   fetchBadmintonSession,
   updateBadmintonSession,
   subscribeToBadmintonSession,
+  lastDbStatus,
+  lastErrorMessage,
 } from './utils/supabaseClient';
 
 export default function App() {
@@ -34,6 +36,9 @@ export default function App() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isWebInfoModalOpen, setIsWebInfoModalOpen] = useState(false);
 
+  const [dbStatusState, setDbStatusState] = useState(lastDbStatus);
+  const [dbErrorMsgState, setDbErrorMsgState] = useState(lastErrorMessage);
+
   useEffect(() => {
     if (isSupabaseConfigured) {
       const currentSessionObj = {
@@ -47,23 +52,22 @@ export default function App() {
 
       const syncRemoteData = () => {
         fetchBadmintonSession(currentSessionObj).then((remoteData) => {
+          setDbStatusState(lastDbStatus);
+          setDbErrorMsgState(lastErrorMessage);
           if (remoteData) {
             applyRemoteSession(remoteData);
           }
         });
       };
 
-      // 1차 초기 수신
       syncRemoteData();
 
-      // 2차 웹소켓 실시간 수신
       const unsubscribe = subscribeToBadmintonSession((remoteData) => {
         if (remoteData) {
           applyRemoteSession(remoteData);
         }
       });
 
-      // 3차 3초 주기 자동 폴링 백업 (100% 무조건 동기화 보장)
       const pollInterval = setInterval(syncRemoteData, 3000);
 
       const handleVisibilityChange = () => {
@@ -116,7 +120,10 @@ export default function App() {
     saveFullSession(sessionObj);
 
     if (isSupabaseConfigured) {
-      updateBadmintonSession(sessionObj);
+      updateBadmintonSession(sessionObj).then(() => {
+        setDbStatusState(lastDbStatus);
+        setDbErrorMsgState(lastErrorMessage);
+      });
     }
   };
 
@@ -471,6 +478,8 @@ export default function App() {
         activePlayersCount={activePlayersCount}
         totalPlayersCount={players.length}
         isSupabaseConfigured={isSupabaseConfigured}
+        dbStatus={dbStatusState}
+        dbErrorMessage={dbErrorMsgState}
       />
 
       {/* Main Container */}
@@ -531,7 +540,11 @@ export default function App() {
       <footer className="border-t border-[#e5e8eb] py-4 px-6 text-center text-xs text-[#8b95a1] bg-white">
         <p>
           🏸 배드민턴 게임판 매칭 시스템 ·{' '}
-          {isSupabaseConfigured ? '⚡ Supabase 1초 실시간 동기화 가동 중' : '🔒 로컬 단독 보존'}
+          {isSupabaseConfigured
+            ? dbStatusState === 'ok'
+              ? '⚡ Supabase 1초 실시간 연동 성공'
+              : `⚠️ DB 접속 오류: ${dbErrorMsgState || '확인 필요'}`
+            : '🔒 로컬 단독 보존'}
         </p>
       </footer>
     </div>

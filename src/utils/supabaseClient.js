@@ -18,12 +18,17 @@ export const supabase = isSupabaseConfigured
 const SESSION_ROOM_ID = 'default_badminton_room';
 
 let globalChannel = null;
+export let lastDbStatus = 'checking'; // 'ok', 'error', 'checking'
+export let lastErrorMessage = '';
 
 /**
  * Supabase DB에서 최신 대진표 세션 데이터 가져오기
  */
 export async function fetchBadmintonSession(fallbackSession) {
-  if (!isSupabaseConfigured || !supabase) return null;
+  if (!isSupabaseConfigured || !supabase) {
+    lastDbStatus = 'no_config';
+    return null;
+  }
 
   try {
     const { data, error } = await supabase
@@ -34,8 +39,13 @@ export async function fetchBadmintonSession(fallbackSession) {
 
     if (error) {
       console.error('Supabase fetch error:', error);
+      lastDbStatus = 'error';
+      lastErrorMessage = error.message || error.details || 'DB Read Error';
       return null;
     }
+
+    lastDbStatus = 'ok';
+    lastErrorMessage = '';
 
     if (!data && fallbackSession) {
       await updateBadmintonSession(fallbackSession);
@@ -45,6 +55,8 @@ export async function fetchBadmintonSession(fallbackSession) {
     return data ? data.session_data : null;
   } catch (err) {
     console.error('Supabase fetch exception:', err);
+    lastDbStatus = 'error';
+    lastErrorMessage = err.message || 'Network/CORS Exception';
     return null;
   }
 }
@@ -56,8 +68,7 @@ export async function updateBadmintonSession(sessionData) {
   if (!isSupabaseConfigured || !supabase) return;
 
   try {
-    // 1. Supabase DB에 세션 저장
-    await supabase
+    const { error } = await supabase
       .from('badminton_sessions')
       .upsert(
         {
@@ -68,7 +79,15 @@ export async function updateBadmintonSession(sessionData) {
         { onConflict: 'room_id' }
       );
 
-    // 2. Broadcast 웹소켓으로 연결된 모든 기기(PC, 폰)에 0.1초 즉시 전송
+    if (error) {
+      console.error('Supabase update error:', error);
+      lastDbStatus = 'error';
+      lastErrorMessage = error.message || 'DB Write Error';
+    } else {
+      lastDbStatus = 'ok';
+      lastErrorMessage = '';
+    }
+
     if (globalChannel) {
       globalChannel.send({
         type: 'broadcast',
@@ -78,6 +97,8 @@ export async function updateBadmintonSession(sessionData) {
     }
   } catch (err) {
     console.error('Supabase update exception:', err);
+    lastDbStatus = 'error';
+    lastErrorMessage = err.message || 'Network Exception';
   }
 }
 
@@ -98,13 +119,11 @@ export function subscribeToBadmintonSession(onSessionUpdate) {
   });
 
   globalChannel
-    // 1. Broadcast 웹소켓 실시간 0.1초 메세지 수신
     .on('broadcast', { event: 'session_update' }, (payload) => {
       if (payload && payload.payload) {
         onSessionUpdate(payload.payload);
       }
     })
-    // 2. DB Postgres Changes 동기화 수신
     .on(
       'postgres_changes',
       {
@@ -120,7 +139,7 @@ export function subscribeToBadmintonSession(onSessionUpdate) {
     )
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
-        console.log('⚡ 0.1초 강력한 Realtime Broadcast 채널 연결 성공!');
+        console.log('⚡ Realtime Subscribed!');
       }
     });
 
