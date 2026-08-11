@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TIER_COLORS } from '../utils/matchmaker';
-import { Trophy, CheckCircle2, Award, Sparkles, UserCheck, Flame, FastForward, Clock, Power, Edit3, RefreshCw } from 'lucide-react';
+import { Trophy, CheckCircle2, Award, Sparkles, UserCheck, Flame, FastForward, Clock, Power, Edit3, RefreshCw, Shuffle } from 'lucide-react';
 import ManualCourtAssignModal from './ManualCourtAssignModal';
 
 export default function CourtBoard({
@@ -23,7 +23,30 @@ export default function CourtBoard({
 
   return (
     <div className="space-y-8">
-      {/* SECTION 1: COURTS STATUS GRID */}
+      {/* SECTION 1: MAIN ACTION BAR FOR ROTATION */}
+      <div className="tds-card p-5 border border-[#e5e8eb] bg-gradient-to-r from-blue-600 via-[#3182f6] to-indigo-600 text-white flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xl">
+        <div className="space-y-1 text-center sm:text-left min-w-0">
+          <div className="flex items-center justify-center sm:justify-start gap-2">
+            <Shuffle className="w-6 h-6 text-yellow-300 animate-bounce flex-shrink-0" />
+            <h2 className="font-black text-lg tracking-tight whitespace-nowrap">
+              다음 라운드 자동 대진표 섞기
+            </h2>
+          </div>
+          <p className="text-xs text-blue-100 font-medium truncate">
+            1게임이 끝난 후 누르면 <strong>안 뛴 사람(휴식자) 우선 투입 & 뛴 사람 교체</strong>로 공평하게 대진을 섞어줍니다!
+          </p>
+        </div>
+
+        <button
+          onClick={onGenerateMatches}
+          className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-white text-[#3182f6] hover:bg-blue-50 transition font-black text-sm shadow-lg flex items-center justify-center gap-2 whitespace-nowrap flex-shrink-0"
+        >
+          <RefreshCw className="w-5 h-5 text-[#3182f6] stroke-[2.5]" />
+          <span>🔄 다음 라운드 대진 섞기</span>
+        </button>
+      </div>
+
+      {/* SECTION 2: COURTS STATUS GRID */}
       <div>
         <div className="flex items-center gap-2.5 mb-4">
           <div className="w-3.5 h-3.5 rounded-full bg-[#3182f6] animate-ping flex-shrink-0" />
@@ -75,14 +98,15 @@ export default function CourtBoard({
                   </div>
                   <div>
                     <h3 className="font-bold text-lg text-[#191f28] whitespace-nowrap">{courtId}번 코트 대기 중</h3>
-                    <p className="text-xs text-[#8b95a1] mt-1 whitespace-nowrap">대진표 짜기를 누르면 자동으로 배치됩니다.</p>
+                    <p className="text-xs text-[#8b95a1] mt-1 whitespace-nowrap">대진표 섞기를 누르면 자동으로 배치됩니다.</p>
                   </div>
                   <div className="flex gap-2">
                     <button
                       onClick={onGenerateMatches}
-                      className="px-4 py-2.5 rounded-xl font-bold text-xs bg-[#3182f6] text-white hover:bg-[#2272eb] transition shadow whitespace-nowrap"
+                      className="px-5 py-3 rounded-2xl font-bold text-xs bg-[#3182f6] text-white hover:bg-[#2272eb] transition shadow whitespace-nowrap flex items-center gap-1.5"
                     >
-                      자동 대진표 짜기
+                      <RefreshCw className="w-4 h-4" />
+                      <span>대진표 섞어서 시작하기</span>
                     </button>
                   </div>
                 </div>
@@ -168,10 +192,10 @@ export default function CourtBoard({
                   <button
                     onClick={() => onRotateSingleCourt && onRotateSingleCourt(court.id)}
                     className="flex-1 py-2 px-2.5 rounded-xl text-xs font-bold bg-[#e8f3ff] text-[#1b64da] hover:bg-blue-100 transition flex items-center justify-center gap-1 whitespace-nowrap overflow-hidden"
-                    title="이 코트만 경기가 끝났을 때 다음 대기 인원으로 교체"
+                    title="이 코트만 경기가 끝났을 때 안 뛴 다음 대기 인원으로 교체"
                   >
                     <RefreshCw className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="truncate">다음 팀 교체</span>
+                    <span className="truncate">단일코트 다음 팀 교체</span>
                   </button>
                 </div>
               </div>
@@ -180,7 +204,7 @@ export default function CourtBoard({
         </div>
       </div>
 
-      {/* SECTION 2: NEXT ROUND PREVIEW QUEUE */}
+      {/* SECTION 3: NEXT ROUND PREVIEW QUEUE */}
       {safeNextCourts.length > 0 && (
         <div className="tds-card p-4 sm:p-6 border border-[#e5e8eb] space-y-4 overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-[#e5e8eb]">
@@ -190,10 +214,10 @@ export default function CourtBoard({
               </div>
               <div className="min-w-0">
                 <h3 className="font-bold text-[#191f28] text-base truncate">
-                  🔮 다음 2라운드 미리 지정 대진표
+                  🔮 다음 2라운드 미리 지정 대진표 (예상)
                 </h3>
                 <p className="text-xs text-[#8b95a1] truncate">
-                  현재 경기 종료 후 코트에 들어갈 다음 타석 선수들입니다.
+                  현재 경기 종료 후 다음 타석에 들어갈 순번 선수들입니다.
                 </p>
               </div>
             </div>
@@ -242,7 +266,7 @@ export default function CourtBoard({
         </div>
       )}
 
-      {/* SECTION 3: RESTING PLAYERS */}
+      {/* SECTION 4: RESTING PLAYERS */}
       {safeResting.length > 0 && (
         <div className="tds-card p-4 sm:p-5 border border-[#e5e8eb] overflow-hidden">
           <div className="flex items-center justify-between mb-3">
@@ -252,7 +276,7 @@ export default function CourtBoard({
                 현재 휴식 중인 인원 ({safeResting.length}명)
               </h3>
             </div>
-            <span className="text-xs text-[#8b95a1] whitespace-nowrap flex-shrink-0 ml-2">다음 대진표 생성 시 우선 출전</span>
+            <span className="text-xs text-[#8b95a1] whitespace-nowrap flex-shrink-0 ml-2">다음 라운드 대진 섞기 시 우선 출전</span>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -286,7 +310,7 @@ export default function CourtBoard({
   );
 }
 
-// TOSS COURT PLAYER CHIP (성별 아이콘 반영)
+// TOSS COURT PLAYER CHIP
 function TossCourtPlayerChip({ player }) {
   if (!player) return null;
   const name = player.name || '무명';

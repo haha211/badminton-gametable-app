@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Users, RefreshCw, Upload, Share2, Sparkles, Smartphone, Power, RotateCcw, Menu, X, Wifi } from 'lucide-react';
+import { Trophy, Users, RefreshCw, Upload, Share2, Sparkles, Smartphone, Power, RotateCcw, Menu, X, Wifi, Shuffle } from 'lucide-react';
 
 export default function Header({
   activeTab,
@@ -105,10 +105,11 @@ export default function Header({
 
             <button
               onClick={onGenerateMatches}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold rounded-xl bg-[#3182f6] text-white hover:bg-[#2272eb] transition shadow-md shadow-blue-500/20 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-black rounded-xl bg-[#3182f6] text-white hover:bg-[#2272eb] transition shadow-md shadow-blue-500/20 whitespace-nowrap"
+              title="안 뛴 사람(휴식자) 우선 투입 & 뛴 사람 교체로 다음 라운드 섞기"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>대진표 짜기</span>
+              <Shuffle className="w-4 h-4 stroke-[2.5]" />
+              <span>🔄 다음 라운드 대진 섞기</span>
             </button>
 
             <button
@@ -132,10 +133,10 @@ export default function Header({
           <div className="flex items-center gap-1.5 lg:hidden">
             <button
               onClick={onGenerateMatches}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-xl bg-[#3182f6] text-white hover:bg-[#2272eb] transition shadow-sm whitespace-nowrap"
+              className="flex items-center gap-1 px-3.5 py-1.5 text-xs font-black rounded-xl bg-[#3182f6] text-white hover:bg-[#2272eb] transition shadow-sm whitespace-nowrap"
             >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>대진 짜기</span>
+              <Shuffle className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>다음 대진 섞기</span>
             </button>
 
             <button
