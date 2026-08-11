@@ -53,13 +53,18 @@ export default function App() {
         });
       };
 
+      // 1차 초기 수신
       syncRemoteData();
 
+      // 2차 웹소켓 실시간 수신
       const unsubscribe = subscribeToBadmintonSession((remoteData) => {
         if (remoteData) {
           applyRemoteSession(remoteData);
         }
       });
+
+      // 3차 3초 주기 자동 폴링 백업 (100% 무조건 동기화 보장)
+      const pollInterval = setInterval(syncRemoteData, 3000);
 
       const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') {
@@ -72,13 +77,13 @@ export default function App() {
 
       return () => {
         unsubscribe();
+        clearInterval(pollInterval);
         window.removeEventListener('visibilitychange', handleVisibilityChange);
         window.removeEventListener('focus', syncRemoteData);
       };
     }
   }, []);
 
-  // 리셋 및 빈 배열([]) 상태도 100% 무조건 원격 DB와 무결성 동기화
   const applyRemoteSession = (data) => {
     if (!data) return;
     setPlayers(Array.isArray(data.players) ? data.players : []);

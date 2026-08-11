@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Users, RefreshCw, Upload, Share2, Sparkles, Smartphone, Power, RotateCcw, Menu, X, Wifi, Shuffle } from 'lucide-react';
+import { Trophy, Users, RefreshCw, Upload, Share2, Sparkles, Power, RotateCcw, Menu, X, Wifi, Shuffle } from 'lucide-react';
 
 export default function Header({
   activeTab,
@@ -46,32 +46,32 @@ export default function Header({
           isHeaderVisible ? 'translate-y-0' : '-translate-y-full'
         }`}
       >
-        <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-2">
-          {/* Logo & Title */}
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-xl bg-[#3182f6] flex items-center justify-center shadow-md shadow-blue-500/20 flex-shrink-0">
-              <Trophy className="w-4 h-4 text-white stroke-[2.5]" />
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-1.5 min-w-0">
+          {/* Logo & Title (모바일 잘림 100% 방지) */}
+          <div className="flex items-center space-x-1.5 min-w-0 flex-1 overflow-hidden">
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-[#3182f6] flex items-center justify-center shadow-md shadow-blue-500/20 flex-shrink-0">
+              <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white stroke-[2.5]" />
             </div>
-            <div className="whitespace-nowrap">
-              <div className="flex items-center gap-1.5">
-                <h1 className="font-extrabold text-base tracking-tight text-[#191f28] whitespace-nowrap">
-                  배드민턴 게임판
-                </h1>
-                {isSupabaseConfigured ? (
-                  <span className="px-2 py-0.5 text-[9px] font-bold bg-emerald-100 text-emerald-800 rounded-full whitespace-nowrap flex items-center gap-1">
-                    <Wifi className="w-2.5 h-2.5 animate-pulse" /> 1초 실시간 동기화
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 text-[9px] font-bold bg-[#e8f3ff] text-[#1b64da] rounded-full whitespace-nowrap">
-                    PRO
-                  </span>
-                )}
-              </div>
+            <div className="min-w-0 flex items-center gap-1 overflow-hidden">
+              <h1 className="font-extrabold text-sm sm:text-base tracking-tight text-[#191f28] truncate whitespace-nowrap">
+                배드민턴 게임판
+              </h1>
+              {isSupabaseConfigured ? (
+                <span className="px-1.5 py-0.5 text-[9px] font-bold bg-emerald-100 text-emerald-800 rounded-full whitespace-nowrap flex items-center gap-0.5 flex-shrink-0">
+                  <Wifi className="w-2.5 h-2.5 animate-pulse text-emerald-600" />
+                  <span className="hidden sm:inline">1초 실시간 동기화</span>
+                  <span className="sm:hidden">실시간</span>
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.5 text-[9px] font-bold bg-[#e8f3ff] text-[#1b64da] rounded-full whitespace-nowrap flex-shrink-0">
+                  PRO
+                </span>
+              )}
             </div>
           </div>
 
           {/* Desktop Controls (PC View) */}
-          <div className="hidden lg:flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
             {/* Court Switches */}
             <div className="flex items-center bg-[#f2f4f6] p-1 rounded-xl border border-[#e5e8eb] text-xs gap-1 whitespace-nowrap">
               <span className="px-1.5 text-[#4e5968] font-bold text-[11px] flex items-center gap-1 whitespace-nowrap">
@@ -129,19 +129,19 @@ export default function Header({
             </button>
           </div>
 
-          {/* Mobile Right Bar */}
-          <div className="flex items-center gap-1.5 lg:hidden">
+          {/* Mobile Right Bar (햄버거 버튼 잘림 방지 flex-shrink-0) */}
+          <div className="flex items-center gap-1 lg:hidden flex-shrink-0">
             <button
               onClick={onGenerateMatches}
-              className="flex items-center gap-1 px-3.5 py-1.5 text-xs font-black rounded-xl bg-[#3182f6] text-white hover:bg-[#2272eb] transition shadow-sm whitespace-nowrap"
+              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-black rounded-xl bg-[#3182f6] text-white hover:bg-[#2272eb] transition shadow-sm whitespace-nowrap flex-shrink-0"
             >
               <Shuffle className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>다음 대진 섞기</span>
+              <span className="whitespace-nowrap">대진 섞기</span>
             </button>
 
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="p-2 rounded-xl bg-[#f2f4f6] text-[#191f28] hover:bg-gray-200 transition border border-[#e5e8eb]"
+              className="p-1.5 sm:p-2 rounded-xl bg-[#f2f4f6] text-[#191f28] hover:bg-gray-200 transition border border-[#e5e8eb] flex-shrink-0"
               aria-label="메뉴 열기"
             >
               {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -150,11 +150,11 @@ export default function Header({
         </div>
 
         {/* Tab Navigation */}
-        <div className="max-w-7xl mx-auto px-4 pb-2 border-t border-[#e5e8eb] flex items-center justify-between text-xs pt-1.5">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 pb-2 border-t border-[#e5e8eb] flex items-center justify-between text-xs pt-1.5">
           <div className="flex items-center gap-1 p-0.5 bg-[#f2f4f6] rounded-xl whitespace-nowrap overflow-x-auto no-scrollbar w-full sm:w-auto">
             <button
               onClick={() => setActiveTab('courts')}
-              className={`px-3 py-1 rounded-lg font-bold flex items-center gap-1 transition whitespace-nowrap flex-1 sm:flex-none justify-center ${
+              className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition whitespace-nowrap flex-1 sm:flex-none justify-center ${
                 activeTab === 'courts'
                   ? 'bg-white text-[#3182f6] shadow-sm'
                   : 'text-[#4e5968] hover:text-[#191f28]'
@@ -166,7 +166,7 @@ export default function Header({
 
             <button
               onClick={() => setActiveTab('players')}
-              className={`px-3 py-1 rounded-lg font-bold flex items-center gap-1 transition whitespace-nowrap flex-1 sm:flex-none justify-center ${
+              className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition whitespace-nowrap flex-1 sm:flex-none justify-center ${
                 activeTab === 'players'
                   ? 'bg-white text-[#3182f6] shadow-sm'
                   : 'text-[#4e5968] hover:text-[#191f28]'
@@ -178,7 +178,7 @@ export default function Header({
 
             <button
               onClick={() => setActiveTab('stats')}
-              className={`px-3 py-1 rounded-lg font-bold flex items-center gap-1 transition whitespace-nowrap flex-1 sm:flex-none justify-center ${
+              className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 transition whitespace-nowrap flex-1 sm:flex-none justify-center ${
                 activeTab === 'stats'
                   ? 'bg-white text-[#3182f6] shadow-sm'
                   : 'text-[#4e5968] hover:text-[#191f28]'
