@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import CourtBoard from './components/CourtBoard';
 import PlayerManager from './components/PlayerManager';
@@ -157,6 +157,7 @@ export default function App() {
       } else {
         return {
           ...p,
+          totalRestCount: (p.totalRestCount || 0) + 1,
           consecutiveRest: (p.consecutiveRest || 0) + 1,
           consecutivePlayed: 0,
         };
@@ -279,7 +280,42 @@ export default function App() {
     syncSession(updatedPlayers, updatedCourts, predicted, restingPlayers, history, enabledCourts);
   };
 
-  // 선수 추가 (성별 gender 인자 반영)
+  // 경기 출전 중인 두 선수의 코트/팀 위치를 맞교체하는 기능
+  const handleSwapActivePlayers = (p1Id, p2Id) => {
+    let p1Obj = null;
+    let p2Obj = null;
+
+    activeCourts.forEach((c) => {
+      [...(c.team1 || []), ...(c.team2 || [])].forEach((p) => {
+        if (p.id === p1Id) p1Obj = p;
+        if (p.id === p2Id) p2Obj = p;
+      });
+    });
+
+    if (!p1Obj || !p2Obj) return;
+
+    const updatedCourts = activeCourts.map((c) => {
+      const t1 = (c.team1 || []).map((p) => (p.id === p1Id ? p2Obj : p.id === p2Id ? p1Obj : p));
+      const t2 = (c.team2 || []).map((p) => (p.id === p1Id ? p2Obj : p.id === p2Id ? p1Obj : p));
+      const match = getBestDoubleMatch([...t1, ...t2]);
+
+      return {
+        ...c,
+        team1: t1,
+        team2: t2,
+        t1Score: match ? match.t1Score : c.t1Score,
+        t2Score: match ? match.t2Score : c.t2Score,
+        scoreDiff: match ? match.scoreDiff : c.scoreDiff,
+      };
+    });
+
+    const predicted = predictNextRound(players, updatedCourts, enabledCourts);
+
+    setActiveCourts(updatedCourts);
+    setNextCourts(predicted);
+    syncSession(players, updatedCourts, predicted, restingPlayers, history, enabledCourts);
+  };
+
   const handleAddPlayer = (name, tier = 'B', gender = 'M') => {
     if (players.length >= 16) {
       alert('최대 인원은 16명까지입니다.');
@@ -294,6 +330,7 @@ export default function App() {
       gamesPlayed: 0,
       consecutivePlayed: 0,
       consecutiveRest: 0,
+      totalRestCount: 0,
       wins: 0,
       losses: 0,
       partnerHistory: {},
@@ -354,6 +391,7 @@ export default function App() {
           gamesPlayed: 0,
           consecutivePlayed: 0,
           consecutiveRest: 0,
+          totalRestCount: 0,
           wins: 0,
           losses: 0,
           partnerHistory: {},
@@ -413,6 +451,7 @@ export default function App() {
             onToggleCourt={handleToggleCourt}
             onRotateSingleCourt={handleRotateSingleCourt}
             onConfirmManualAssign={handleConfirmManualAssign}
+            onSwapActivePlayers={handleSwapActivePlayers}
             onGenerateMatches={() => handleGenerateMatches()}
             onOpenOCR={() => setIsOCRModalOpen(true)}
           />
