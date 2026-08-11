@@ -1,5 +1,5 @@
 /**
- * 배드민턴 스마트 복식 대진 생성기 (최근 3경기 파트너 중복 100% 회피 적용)
+ * 배드민턴 스마트 복식 대진 생성기 (등록 순서 정렬 보장 포함)
  */
 
 export const TIER_SCORES = {
@@ -43,7 +43,6 @@ export function getBestDoubleMatch(players4, history = []) {
     { team1: [p1, p4], team2: [p2, p3] },
   ];
 
-  // 최근 3라운드 경기 기록 추출
   const recent3Matches = Array.isArray(history) ? history.slice(-3) : [];
 
   const isRecentPartner = (idA, idB) => {
@@ -64,14 +63,10 @@ export function getBestDoubleMatch(players4, history = []) {
     const t2Score = getPlayerScore(combo.team2[0]) + getPlayerScore(combo.team2[1]);
     const scoreDiff = Math.abs(t1Score - t2Score);
 
-    // 최근 3경기 파트너 중복 체크
     const t1Recent = isRecentPartner(combo.team1[0].id, combo.team1[1].id);
     const t2Recent = isRecentPartner(combo.team2[0].id, combo.team2[1].id);
-
-    // 최근 3경기 이내 겹치면 패널티 +100pt 부여하여 무조건 회피
     const recentPenalty = (t1Recent ? 100 : 0) + (t2Recent ? 100 : 0);
 
-    // 과거 파트너 누적 횟수
     const p1P2History = (combo.team1[0].partnerHistory?.[combo.team1[1].id] || 0) +
                          (combo.team2[0].partnerHistory?.[combo.team2[1].id] || 0);
 
@@ -93,47 +88,57 @@ export function getBestDoubleMatch(players4, history = []) {
 }
 
 /**
- * 전체 참석자 중 활성화된 코트들에 대해 100% 공평 대진 생성
+ * 전체 참석자 중 활성화된 코트들에 대해 100% 공평 대진 생성 (등록 순서 정렬 100% 보장)
  */
 export function generateMatches(players = [], enabledCourts = [1, 2, 3], history = []) {
-  const activePlayers = players.filter((p) => p && p.isPresent !== false);
+  const activePlayers = players.filter((p) => p && p.isPresent !== false && p.isWantRest !== true);
 
   if (activePlayers.length < 4) {
     return {
       success: false,
-      message: '참석자 인원이 최소 4명 이상이어야 경기를 생성할 수 있습니다.',
+      message: '경기를 가동할 참석자 인원이 부족합니다. (수동 휴식/불참자 제외 후 최소 4명 필요)',
       courts: [],
-      restingPlayers: [],
+      restingPlayers: players.filter((p) => p && (p.isPresent === false || p.isWantRest === true)),
     };
   }
 
   const courtCount = enabledCourts.length;
   const maxPlayersNeeded = courtCount * 4;
 
-  // 1단계: 출전 순번 정렬 (덜 뛴 사람 최우선)
+  // 1단계: 출전 순번 정렬 (덜 뛴 사람 & 지각자 등록 순서 보장)
   const sortedPlayers = [...activePlayers].sort((a, b) => {
+    // 1순위: 뛴 경기 수 적은 사람
     const gDiff = (a.gamesPlayed || 0) - (b.gamesPlayed || 0);
     if (gDiff !== 0) return gDiff;
 
+    // 2순위: 쉰 회수 많은 사람
     const restA = (a.totalRestCount || 0) + (a.consecutiveRest || 0);
     const restB = (b.totalRestCount || 0) + (b.consecutiveRest || 0);
     if (restB !== restA) return restB - restA;
 
-    return (a.consecutivePlayed || 0) - (b.consecutivePlayed || 0);
+    // 3순위: 연속 경기 출전 적은 사람
+    const cDiff = (a.consecutivePlayed || 0) - (b.consecutivePlayed || 0);
+    if (cDiff !== 0) return cDiff;
+
+    // 4순위: 지각자 간에서는 먼저 입력(등록)된 순서대로 100% 우선 출전!
+    const timeA = a.createdAt || 0;
+    const timeB = b.createdAt || 0;
+    return timeA - timeB;
   });
 
   const selectedPlayers = sortedPlayers.slice(0, maxPlayersNeeded);
-  const restingPlayers = sortedPlayers.slice(maxPlayersNeeded);
 
-  // 2단계: 코트별 4명 그룹 밸런스 분배 (실력 점수 순 정렬 후 스네이크 배분)
+  const unselectedActive = sortedPlayers.slice(maxPlayersNeeded);
+  const wantRestPlayers = players.filter((p) => p && p.isPresent !== false && p.isWantRest === true);
+  const restingPlayers = [...unselectedActive, ...wantRestPlayers];
+
+  // 2단계: 코트별 4명 그룹 밸런스 분배 (스네이크 드래프트)
   const sortedBySkill = [...selectedPlayers].sort((a, b) => getPlayerScore(b) - getPlayerScore(a));
-
   const courtGroups = Array.from({ length: courtCount }, () => []);
 
   for (let i = 0; i < sortedBySkill.length; i++) {
     const round = Math.floor(i / courtCount);
     const posInRound = i % courtCount;
-
     const targetCourtIndex = round % 2 === 0 ? posInRound : courtCount - 1 - posInRound;
     if (courtGroups[targetCourtIndex].length < 4) {
       courtGroups[targetCourtIndex].push(sortedBySkill[i]);
@@ -171,7 +176,7 @@ export function generateMatches(players = [], enabledCourts = [1, 2, 3], history
  * 다음 라운드 예비 대진 예측
  */
 export function predictNextRound(players = [], currentActiveCourts = [], enabledCourts = [1, 2, 3], history = []) {
-  const activeList = players.filter((p) => p && p.isPresent !== false);
+  const activeList = players.filter((p) => p && p.isPresent !== false && p.isWantRest !== true);
   if (activeList.length < 4) return [];
 
   const playingIds = new Set(
@@ -195,7 +200,11 @@ export function predictNextRound(players = [], currentActiveCourts = [], enabled
     if (gDiff !== 0) return gDiff;
     const restA = (a.totalRestCount || 0) + (a.consecutiveRest || 0);
     const restB = (b.totalRestCount || 0) + (b.consecutiveRest || 0);
-    return restB - restA;
+    if (restB !== restA) return restB - restA;
+
+    const timeA = a.createdAt || 0;
+    const timeB = b.createdAt || 0;
+    return timeA - timeB;
   });
 
   const courtCount = enabledCourts.length;

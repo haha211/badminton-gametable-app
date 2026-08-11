@@ -150,9 +150,9 @@ export default function App() {
   };
 
   const handleGenerateMatches = (overrideCourts = enabledCourts) => {
-    const activeList = players.filter((p) => p.isPresent !== false);
+    const activeList = players.filter((p) => p.isPresent !== false && p.isWantRest !== true);
     if (activeList.length < 4) {
-      alert('경기를 진행하려면 최소 4명의 참석자가 필요합니다. (참가자 관리 탭에서 참석 상태를 확인하세요)');
+      alert('경기를 진행하려면 최소 4명의 출전 가능 참가자가 필요합니다. (휴식 요청/불참자 확인)');
       return;
     }
 
@@ -177,6 +177,12 @@ export default function App() {
           consecutiveRest: 0,
         };
       } else {
+        if (p.isWantRest === true) {
+          return {
+            ...p,
+            consecutivePlayed: 0,
+          };
+        }
         return {
           ...p,
           totalRestCount: (p.totalRestCount || 0) + 1,
@@ -187,7 +193,7 @@ export default function App() {
     });
 
     const updatedRestingPlayers = updatedPlayers.filter(
-      (p) => p.isPresent !== false && !playingPlayerIds.has(p.id)
+      (p) => p.isPresent !== false && (!playingPlayerIds.has(p.id) || p.isWantRest === true)
     );
 
     const updatedHistory = [...history, ...result.courts];
@@ -205,7 +211,7 @@ export default function App() {
   };
 
   const handleRotateSingleCourt = (courtId) => {
-    const activeList = players.filter((p) => p.isPresent !== false);
+    const activeList = players.filter((p) => p.isPresent !== false && p.isWantRest !== true);
     if (activeList.length < 4) return;
 
     const playingOtherCourtPlayerIds = new Set(
@@ -224,7 +230,10 @@ export default function App() {
     const sorted = [...availableForThisCourt].sort((a, b) => {
       const pDiff = (a.gamesPlayed || 0) - (b.gamesPlayed || 0);
       if (pDiff !== 0) return pDiff;
-      return (b.consecutiveRest || 0) - (a.consecutiveRest || 0);
+      const restA = (a.totalRestCount || 0) + (a.consecutiveRest || 0);
+      const restB = (b.totalRestCount || 0) + (b.consecutiveRest || 0);
+      if (restB !== restA) return restB - restA;
+      return (a.createdAt || 0) - (b.createdAt || 0);
     });
 
     const fourPlayers = sorted.slice(0, 4);
@@ -261,6 +270,7 @@ export default function App() {
           consecutiveRest: 0,
         };
       } else {
+        if (p.isWantRest === true) return p;
         return {
           ...p,
           totalRestCount: (p.totalRestCount || 0) + 1,
@@ -271,7 +281,7 @@ export default function App() {
     });
 
     const updatedRestingPlayers = updatedPlayers.filter(
-      (p) => p.isPresent !== false && !allPlayingPlayerIds.has(p.id)
+      (p) => p.isPresent !== false && (!allPlayingPlayerIds.has(p.id) || p.isWantRest === true)
     );
 
     const updatedHistory = [...history, newCourtData];
@@ -364,21 +374,32 @@ export default function App() {
     syncSession(players, updatedCourts, predicted, restingPlayers, history, enabledCourts);
   };
 
+  // 지각자 등록 순서 타임스탬프(createdAt) 부여
   const handleAddPlayer = (name, tier = 'B', gender = 'M') => {
     if (players.length >= 16) {
       alert('최대 인원은 16명까지입니다.');
       return;
     }
+
+    const existingGames = players.map((p) => p.gamesPlayed || 0);
+    const maxGames = Math.max(...existingGames, 0);
+
+    const isLatecomer = maxGames > 0;
+    const initialRest = isLatecomer ? maxGames : 0;
+
     const newPlayer = {
       id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
       name,
       gender,
       tier,
       isPresent: true,
+      isWantRest: false,
+      isLate: isLatecomer,
       gamesPlayed: 0,
       consecutivePlayed: 0,
-      consecutiveRest: 0,
-      totalRestCount: 0,
+      consecutiveRest: initialRest,
+      totalRestCount: initialRest,
+      createdAt: Date.now(), // 지각자 등록 순서 100% 보장 타임스탬프
       wins: 0,
       losses: 0,
       partnerHistory: {},
@@ -413,9 +434,23 @@ export default function App() {
   };
 
   const handleTogglePresent = (id) => {
-    const updated = players.map((p) =>
-      p.id === id ? { ...p, isPresent: p.isPresent === false } : p
-    );
+    const updated = players.map((p) => {
+      if (p.id === id) {
+        const nextPresent = p.isPresent === false;
+        if (nextPresent && (p.gamesPlayed || 0) === 0) {
+          const maxGames = Math.max(...players.map((pl) => pl.gamesPlayed || 0), 0);
+          return {
+            ...p,
+            isPresent: true,
+            isLate: maxGames > 0,
+            totalRestCount: maxGames > 0 ? maxGames : p.totalRestCount || 0,
+            createdAt: Date.now(),
+          };
+        }
+        return { ...p, isPresent: nextPresent };
+      }
+      return p;
+    });
     setPlayers(updated);
     syncSession(updated);
   };
@@ -423,6 +458,8 @@ export default function App() {
   const handleImportPlayers = (detectedList) => {
     const existingNames = new Set(players.map((p) => p.name));
     const newItems = [];
+    const maxGames = Math.max(...players.map((p) => p.gamesPlayed || 0), 0);
+    let now = Date.now();
 
     for (const item of detectedList) {
       if (players.length + newItems.length >= 16) {
@@ -430,16 +467,20 @@ export default function App() {
         break;
       }
       if (!existingNames.has(item.name)) {
+        now += 1;
         newItems.push({
-          id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          id: `p_${now}_${Math.random().toString(36).substr(2, 4)}`,
           name: item.name,
           gender: item.gender || 'M',
           tier: item.tier || 'B',
           isPresent: true,
+          isWantRest: false,
+          isLate: maxGames > 0,
           gamesPlayed: 0,
           consecutivePlayed: 0,
-          consecutiveRest: 0,
-          totalRestCount: 0,
+          consecutiveRest: maxGames,
+          totalRestCount: maxGames,
+          createdAt: now,
           wins: 0,
           losses: 0,
           partnerHistory: {},
@@ -544,8 +585,8 @@ export default function App() {
       />
 
       {/* Footer */}
-      <footer className="border-t border-[#e5e8eb] py-4 px-6 text-center text-xs text-[#8b95a1] bg-white">
-        <p>
+      <footer className="border-t border-[#e5e8eb] py-4 px-6 text-center text-xs text-[#8b95a1] bg-[#191f28]">
+        <p className="text-gray-300">
           🏸 배드민턴 게임판 매칭 시스템 ·{' '}
           {isSupabaseConfigured
             ? dbStatusState === 'ok'
