@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trophy, Users, RefreshCw, Upload, Share2, Sparkles, Power, RotateCcw, Menu, X, Wifi, Shuffle, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Trophy, Users, RefreshCw, Upload, Share2, Sparkles, Power, RotateCcw, Menu, X, Wifi, Shuffle, AlertTriangle, Smartphone } from 'lucide-react';
 
 export default function Header({
   activeTab,
@@ -11,8 +11,8 @@ export default function Header({
   enabledCourts = [1, 2, 3],
   onToggleCourt,
   onResetAllData,
-  activePlayersCount,
-  totalPlayersCount,
+  activePlayersCount = 0,
+  totalPlayersCount = 0,
   isSupabaseConfigured = false,
   dbStatus = 'checking',
   dbErrorMessage = ''
@@ -104,7 +104,7 @@ export default function Header({
             </div>
 
             <button
-              onClick={onOpenOCR}
+              onClick={() => onOpenOCR && onOpenOCR()}
               className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-xl bg-[#e8f3ff] text-[#1b64da] hover:bg-blue-100 transition whitespace-nowrap"
             >
               <Upload className="w-3.5 h-3.5" />
@@ -112,7 +112,7 @@ export default function Header({
             </button>
 
             <button
-              onClick={onGenerateMatches}
+              onClick={() => onGenerateMatches && onGenerateMatches()}
               className="flex items-center gap-1.5 px-4 py-2 text-xs font-black rounded-xl bg-[#3182f6] text-white hover:bg-[#2272eb] transition shadow-md shadow-blue-500/20 whitespace-nowrap"
               title="안 뛴 사람(휴식자) 우선 투입 & 뛴 사람 교체로 다음 라운드 섞기"
             >
@@ -121,7 +121,7 @@ export default function Header({
             </button>
 
             <button
-              onClick={onOpenShare}
+              onClick={() => onOpenShare && onOpenShare()}
               className="p-2 rounded-xl bg-[#f2f4f6] hover:bg-gray-200 text-[#191f28] border border-[#e5e8eb] transition whitespace-nowrap"
               title="대진표 공유"
             >
@@ -129,7 +129,7 @@ export default function Header({
             </button>
 
             <button
-              onClick={onResetAllData}
+              onClick={() => onResetAllData && onResetAllData()}
               className="p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition border border-red-100 whitespace-nowrap"
               title="전체 리셋"
             >
@@ -140,7 +140,7 @@ export default function Header({
           {/* Mobile Right Bar */}
           <div className="flex items-center gap-1 lg:hidden flex-shrink-0">
             <button
-              onClick={onGenerateMatches}
+              onClick={() => onGenerateMatches && onGenerateMatches()}
               className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-black rounded-xl bg-[#3182f6] text-white hover:bg-[#2272eb] transition shadow-sm whitespace-nowrap flex-shrink-0"
             >
               <Shuffle className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -206,9 +206,9 @@ export default function Header({
           </div>
         </div>
 
-        {/* MOBILE HAMBURGER DRAWER */}
+        {/* MOBILE HAMBURGER DRAWER (Null-Safe 방어적 이벤트 핸들러 적용) */}
         {isMenuOpen && (
-          <div className="lg:hidden border-t border-[#e5e8eb] bg-[#f9fafb] p-4 space-y-4 animate-fadeIn">
+          <div className="lg:hidden border-t border-[#e5e8eb] bg-[#f9fafb] p-4 space-y-4">
             <div className="space-y-1.5">
               <div className="text-xs font-bold text-[#4e5968] flex items-center gap-1">
                 <Power className="w-3.5 h-3.5 text-[#3182f6]" /> 코트 가동 상태 설정:
@@ -237,7 +237,7 @@ export default function Header({
               <button
                 onClick={() => {
                   setIsMenuOpen(false);
-                  onOpenOCR();
+                  if (onOpenOCR) onOpenOCR();
                 }}
                 className="p-2.5 rounded-xl bg-white border border-[#e5e8eb] text-xs font-bold text-[#1b64da] flex items-center justify-center gap-1.5"
               >
@@ -248,7 +248,7 @@ export default function Header({
               <button
                 onClick={() => {
                   setIsMenuOpen(false);
-                  onOpenShare();
+                  if (onOpenShare) onOpenShare();
                 }}
                 className="p-2.5 rounded-xl bg-white border border-[#e5e8eb] text-xs font-bold text-[#191f28] flex items-center justify-center gap-1.5"
               >
@@ -259,7 +259,7 @@ export default function Header({
               <button
                 onClick={() => {
                   setIsMenuOpen(false);
-                  onOpenWebInfo();
+                  if (onOpenWebInfo) onOpenWebInfo();
                 }}
                 className="p-2.5 rounded-xl bg-white border border-[#e5e8eb] text-xs font-bold text-[#3182f6] flex items-center justify-center gap-1.5"
               >
@@ -270,7 +270,7 @@ export default function Header({
               <button
                 onClick={() => {
                   setIsMenuOpen(false);
-                  onResetAllData();
+                  if (onResetAllData) onResetAllData();
                 }}
                 className="p-2.5 rounded-xl bg-red-50 border border-red-100 text-xs font-bold text-red-600 flex items-center justify-center gap-1.5"
               >
