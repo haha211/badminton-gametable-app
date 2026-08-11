@@ -26,18 +26,25 @@ export default function StatsView({ players = [], history = [], onResetStats }) 
 
   const diff = maxGames - minGames;
 
-  // 공평도 계산식 (격차 및 표준 편차 완화)
+  // 공평도 계산식: 경기수가 쌓일수록 1~2경기 차이는 당연하고 공평하므로 합리적 비율 반영
   let equitabilityPercent = 100;
   if (totalGamesSum > 0) {
-    if (diff === 0) {
+    if (diff <= 1) {
       equitabilityPercent = 100;
-    } else if (diff === 1) {
-      equitabilityPercent = 98;
     } else if (diff === 2) {
-      equitabilityPercent = 92;
+      equitabilityPercent = 95;
+    } else if (diff === 3) {
+      equitabilityPercent = 88;
     } else {
-      const penalty = Math.min(60, diff * 8);
-      equitabilityPercent = Math.max(40, 100 - penalty);
+      // 평균 대비 격차 비율
+      const relativeDiff = diff / Math.max(1, avgGamesNum);
+      if (relativeDiff <= 0.3) {
+        equitabilityPercent = 90;
+      } else if (relativeDiff <= 0.5) {
+        equitabilityPercent = 82;
+      } else {
+        equitabilityPercent = Math.max(50, Math.round(100 - relativeDiff * 40));
+      }
     }
   }
 
@@ -66,7 +73,7 @@ export default function StatsView({ players = [], history = [], onResetStats }) 
           <div className="text-left sm:text-right">
             <span className="text-2xl font-black text-[#3182f6]">{equitabilityPercent}%</span>
             <div className="text-[11px] font-bold text-[#4e5968] whitespace-nowrap">
-              {diff <= 1 ? '✨ 완벽하게 공평함' : diff <= 2 ? '👍 매우 잘 조율됨' : '⚖️ 순차적 출전 조율 중'}
+              {diff <= 1 ? '✨ 완벽하게 공평함' : diff <= 2 ? '👍 매우 잘 조율됨' : '⚖️ 공평 로테이션 조율 중'}
             </div>
           </div>
         </div>

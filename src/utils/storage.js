@@ -1,174 +1,124 @@
+const STORAGE_KEY = 'badminton_gameboard_session_v1';
+const LAST_DATE_KEY = 'badminton_gameboard_last_date';
+
 /**
- * 스마트 세션 저장소 및 24시간 자동 리셋 유틸리티 (방어적 코드 적용)
+ * 24시간 자정 경과 여부 확인 및 자동 리셋
  */
+export function checkAndAutoResetMidnight() {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const lastSavedDate = localStorage.getItem(LAST_DATE_KEY);
 
-export const INITIAL_PLAYERS = [
-  { id: 'p1', name: '김민준', tier: 'A', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p2', name: '박서준', tier: 'A', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p3', name: '이도현', tier: 'A', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p4', name: '최유진', tier: 'A', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p5', name: '정지훈', tier: 'B', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p6', name: '강하늘', tier: 'B', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p7', name: '윤아름', tier: 'B', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p8', name: '임성민', tier: 'B', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p9', name: '한소희', tier: 'B', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p10', name: '오세훈', tier: 'B', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p11', name: '서예지', tier: 'C', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p12', name: '권지용', tier: 'C', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p13', name: '송중기', tier: 'C', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p14', name: '배수지', tier: 'C', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p15', name: '안효섭', tier: 'C', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-  { id: 'p16', name: '신세경', tier: 'C', isPresent: true, gamesPlayed: 0, consecutivePlayed: 0, consecutiveRest: 0, wins: 0, losses: 0, partnerHistory: {}, opponentHistory: {} },
-];
-
-const KEYS = {
-  PLAYERS: 'badminton_players_v4',
-  ACTIVE_COURTS: 'badminton_active_courts_v4',
-  NEXT_COURTS: 'badminton_next_courts_v4',
-  RESTING: 'badminton_resting_v4',
-  HISTORY: 'badminton_history_v4',
-  SETTINGS: 'badminton_settings_v4',
-  LAST_DATE: 'badminton_last_date_v4',
-};
-
-function getTodayString() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-}
-
-export function loadFullSession() {
-  const today = getTodayString();
-  let savedDate = null;
-  try {
-    savedDate = localStorage.getItem(KEYS.LAST_DATE);
-  } catch (e) {}
-
-  const isNewDay = savedDate && savedDate !== today;
-
-  let players = INITIAL_PLAYERS;
-  try {
-    const raw = localStorage.getItem(KEYS.PLAYERS);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        players = parsed.map((p) => ({
-          id: p.id || `p_${Date.now()}_${Math.random()}`,
-          name: p.name || '무명',
-          tier: ['A', 'B', 'C'].includes(p.tier) ? p.tier : 'B',
-          isPresent: p.isPresent !== false,
-          gamesPlayed: typeof p.gamesPlayed === 'number' ? p.gamesPlayed : 0,
-          consecutivePlayed: typeof p.consecutivePlayed === 'number' ? p.consecutivePlayed : 0,
-          consecutiveRest: typeof p.consecutiveRest === 'number' ? p.consecutiveRest : 0,
-          wins: typeof p.wins === 'number' ? p.wins : 0,
-          losses: typeof p.losses === 'number' ? p.losses : 0,
-          partnerHistory: p.partnerHistory || {},
-          opponentHistory: p.opponentHistory || {},
-          avatar: p.avatar || null,
-        }));
-      }
-    }
-  } catch (e) {}
-
-  if (isNewDay) {
-    players = players.map((p) => ({
-      ...p,
-      gamesPlayed: 0,
-      consecutivePlayed: 0,
-      consecutiveRest: 0,
-      wins: 0,
-      losses: 0,
-    }));
-
-    try {
-      localStorage.setItem(KEYS.LAST_DATE, today);
-      localStorage.removeItem(KEYS.ACTIVE_COURTS);
-      localStorage.removeItem(KEYS.NEXT_COURTS);
-      localStorage.removeItem(KEYS.RESTING);
-      localStorage.removeItem(KEYS.HISTORY);
-    } catch (e) {}
-
-    return {
-      autoResetOccurred: true,
-      players,
-      activeCourts: [],
-      nextCourts: [],
-      restingPlayers: [],
-      history: [],
-      settings: { enabledCourts: [1, 2, 3] },
-    };
+  if (lastSavedDate && lastSavedDate !== today) {
+    localStorage.setItem(LAST_DATE_KEY, today);
+    return true; // 자정 지나 리셋 수행 필요
   }
 
-  let activeCourts = [];
-  let nextCourts = [];
-  let restingPlayers = [];
-  let history = [];
-  let settings = { enabledCourts: [1, 2, 3] };
-
-  try {
-    const ac = localStorage.getItem(KEYS.ACTIVE_COURTS);
-    if (ac) activeCourts = JSON.parse(ac);
-
-    const nc = localStorage.getItem(KEYS.NEXT_COURTS);
-    if (nc) nextCourts = JSON.parse(nc);
-
-    const rp = localStorage.getItem(KEYS.RESTING);
-    if (rp) restingPlayers = JSON.parse(rp);
-
-    const h = localStorage.getItem(KEYS.HISTORY);
-    if (h) history = JSON.parse(h);
-
-    const s = localStorage.getItem(KEYS.SETTINGS);
-    if (s) settings = JSON.parse(s);
-  } catch (e) {}
-
-  try {
-    localStorage.setItem(KEYS.LAST_DATE, today);
-  } catch (e) {}
-
-  return {
-    autoResetOccurred: false,
-    players,
-    activeCourts: Array.isArray(activeCourts) ? activeCourts : [],
-    nextCourts: Array.isArray(nextCourts) ? nextCourts : [],
-    restingPlayers: Array.isArray(restingPlayers) ? restingPlayers : [],
-    history: Array.isArray(history) ? history : [],
-    settings: settings && Array.isArray(settings.enabledCourts) ? settings : { enabledCourts: [1, 2, 3] },
-  };
+  localStorage.setItem(LAST_DATE_KEY, today);
+  return false;
 }
 
-export function saveFullSession({ players, activeCourts, nextCourts, restingPlayers, history, settings }) {
+/**
+ * 로컬스토리지에서 세션 데이터 로드
+ */
+export function loadFullSession() {
+  const isMidnightReset = checkAndAutoResetMidnight();
+
   try {
-    const today = getTodayString();
-    localStorage.setItem(KEYS.LAST_DATE, today);
-    if (players) localStorage.setItem(KEYS.PLAYERS, JSON.stringify(players));
-    if (activeCourts) localStorage.setItem(KEYS.ACTIVE_COURTS, JSON.stringify(activeCourts));
-    if (nextCourts) localStorage.setItem(KEYS.NEXT_COURTS, JSON.stringify(nextCourts));
-    if (restingPlayers) localStorage.setItem(KEYS.RESTING, JSON.stringify(restingPlayers));
-    if (history) localStorage.setItem(KEYS.HISTORY, JSON.stringify(history));
-    if (settings) localStorage.setItem(KEYS.SETTINGS, JSON.stringify(settings));
-  } catch (e) {}
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return getInitialDefaultSession();
+
+    const parsed = JSON.parse(raw);
+
+    if (isMidnightReset) {
+      return {
+        ...parsed,
+        players: clearAllSessionData(parsed.players),
+        activeCourts: [],
+        nextCourts: [],
+        restingPlayers: [],
+        history: [],
+        autoResetOccurred: true,
+      };
+    }
+
+    return parsed;
+  } catch (e) {
+    console.error('Failed to parse local storage session:', e);
+    return getInitialDefaultSession();
+  }
 }
 
-export function clearAllSessionData(players) {
+/**
+ * 로컬스토리지에 세션 데이터 저장
+ */
+export function saveFullSession(sessionData) {
   try {
-    localStorage.removeItem(KEYS.ACTIVE_COURTS);
-    localStorage.removeItem(KEYS.NEXT_COURTS);
-    localStorage.removeItem(KEYS.RESTING);
-    localStorage.removeItem(KEYS.HISTORY);
-  } catch (e) {}
+    const today = new Date().toISOString().slice(0, 10);
+    localStorage.setItem(LAST_DATE_KEY, today);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
+  } catch (e) {
+    console.error('Failed to save session to local storage:', e);
+  }
+}
 
-  const resetPlayers = (players || INITIAL_PLAYERS).map((p) => ({
+/**
+ * 모든 참가자의 경기수, 휴식수(totalRestCount, consecutiveRest), 전적 초기화 (명백한 버그 수정완료)
+ */
+export function clearAllSessionData(players = []) {
+  if (!Array.isArray(players)) return [];
+
+  return players.map((p) => ({
     ...p,
     gamesPlayed: 0,
     consecutivePlayed: 0,
     consecutiveRest: 0,
+    totalRestCount: 0, // 쉰 횟수 0으로 완벽 초기화
     wins: 0,
     losses: 0,
+    partnerHistory: {},
+    opponentHistory: {},
+  }));
+}
+
+/**
+ * 기본 예시 참가자 데이터 생성 (성별 M/F 및 초기화)
+ */
+export function getInitialDefaultSession() {
+  const defaultNames = [
+    { name: '김양', gender: 'F', tier: 'A' },
+    { name: '경민', gender: 'F', tier: 'A' },
+    { name: '정익', gender: 'M', tier: 'B' },
+    { name: '동현', gender: 'M', tier: 'B' },
+    { name: '지훈', gender: 'M', tier: 'B' },
+    { name: '수진', gender: 'F', tier: 'B' },
+    { name: '민우', gender: 'M', tier: 'C' },
+    { name: '하은', gender: 'F', tier: 'C' },
+  ];
+
+  const players = defaultNames.map((item, idx) => ({
+    id: `p_init_${idx}_${Math.random().toString(36).substr(2, 4)}`,
+    name: item.name,
+    gender: item.gender,
+    tier: item.tier,
+    isPresent: true,
+    gamesPlayed: 0,
+    consecutivePlayed: 0,
+    consecutiveRest: 0,
+    totalRestCount: 0,
+    wins: 0,
+    losses: 0,
+    partnerHistory: {},
+    opponentHistory: {},
   }));
 
-  try {
-    localStorage.setItem(KEYS.PLAYERS, JSON.stringify(resetPlayers));
-  } catch (e) {}
-
-  return resetPlayers;
+  return {
+    players,
+    activeCourts: [],
+    nextCourts: [],
+    restingPlayers: [],
+    history: [],
+    settings: {
+      enabledCourts: [1, 2, 3],
+    },
+  };
 }

@@ -143,7 +143,7 @@ export default function App() {
     const filteredActive = activeCourts.filter((c) => nextEnabled.includes(c.id));
     setActiveCourts(filteredActive);
 
-    const predicted = predictNextRound(players, filteredActive, nextEnabled);
+    const predicted = predictNextRound(players, filteredActive, nextEnabled, history);
     setNextCourts(predicted);
 
     syncSession(players, filteredActive, predicted, restingPlayers, history, nextEnabled);
@@ -156,7 +156,7 @@ export default function App() {
       return;
     }
 
-    const result = generateMatches(players, overrideCourts);
+    const result = generateMatches(players, overrideCourts, history);
     if (!result.success) {
       alert(result.message);
       return;
@@ -190,15 +190,18 @@ export default function App() {
       (p) => p.isPresent !== false && !playingPlayerIds.has(p.id)
     );
 
-    const predicted = predictNextRound(updatedPlayers, result.courts, overrideCourts);
+    const updatedHistory = [...history, ...result.courts];
+
+    const predicted = predictNextRound(updatedPlayers, result.courts, overrideCourts, updatedHistory);
 
     setPlayers(updatedPlayers);
     setActiveCourts(result.courts);
     setRestingPlayers(updatedRestingPlayers);
     setNextCourts(predicted);
+    setHistory(updatedHistory);
     setActiveTab('courts');
 
-    syncSession(updatedPlayers, result.courts, predicted, updatedRestingPlayers, history, overrideCourts);
+    syncSession(updatedPlayers, result.courts, predicted, updatedRestingPlayers, updatedHistory, overrideCourts);
   };
 
   const handleRotateSingleCourt = (courtId) => {
@@ -225,7 +228,7 @@ export default function App() {
     });
 
     const fourPlayers = sorted.slice(0, 4);
-    const match = getBestDoubleMatch(fourPlayers);
+    const match = getBestDoubleMatch(fourPlayers, history);
 
     const newCourtData = {
       id: courtId,
@@ -271,18 +274,20 @@ export default function App() {
       (p) => p.isPresent !== false && !allPlayingPlayerIds.has(p.id)
     );
 
-    const predicted = predictNextRound(updatedPlayers, updatedCourts, enabledCourts);
+    const updatedHistory = [...history, newCourtData];
+    const predicted = predictNextRound(updatedPlayers, updatedCourts, enabledCourts, updatedHistory);
 
     setPlayers(updatedPlayers);
     setActiveCourts(updatedCourts);
     setRestingPlayers(updatedRestingPlayers);
     setNextCourts(predicted);
+    setHistory(updatedHistory);
 
-    syncSession(updatedPlayers, updatedCourts, predicted, updatedRestingPlayers, history, enabledCourts);
+    syncSession(updatedPlayers, updatedCourts, predicted, updatedRestingPlayers, updatedHistory, enabledCourts);
   };
 
   const handleConfirmManualAssign = (courtId, team1, team2) => {
-    const match = getBestDoubleMatch([...team1, ...team2]);
+    const match = getBestDoubleMatch([...team1, ...team2], history);
 
     const newCourtData = {
       id: courtId,
@@ -313,13 +318,15 @@ export default function App() {
       return p;
     });
 
-    const predicted = predictNextRound(updatedPlayers, updatedCourts, enabledCourts);
+    const updatedHistory = [...history, newCourtData];
+    const predicted = predictNextRound(updatedPlayers, updatedCourts, enabledCourts, updatedHistory);
 
     setPlayers(updatedPlayers);
     setActiveCourts(updatedCourts);
     setNextCourts(predicted);
+    setHistory(updatedHistory);
 
-    syncSession(updatedPlayers, updatedCourts, predicted, restingPlayers, history, enabledCourts);
+    syncSession(updatedPlayers, updatedCourts, predicted, restingPlayers, updatedHistory, enabledCourts);
   };
 
   const handleSwapActivePlayers = (p1Id, p2Id) => {
@@ -338,7 +345,7 @@ export default function App() {
     const updatedCourts = activeCourts.map((c) => {
       const t1 = (c.team1 || []).map((p) => (p.id === p1Id ? p2Obj : p.id === p2Id ? p1Obj : p));
       const t2 = (c.team2 || []).map((p) => (p.id === p1Id ? p2Obj : p.id === p2Id ? p1Obj : p));
-      const match = getBestDoubleMatch([...t1, ...t2]);
+      const match = getBestDoubleMatch([...t1, ...t2], history);
 
       return {
         ...c,
@@ -350,7 +357,7 @@ export default function App() {
       };
     });
 
-    const predicted = predictNextRound(players, updatedCourts, enabledCourts);
+    const predicted = predictNextRound(players, updatedCourts, enabledCourts, history);
 
     setActiveCourts(updatedCourts);
     setNextCourts(predicted);
