@@ -16,18 +16,37 @@ export default function StatsView({ players = [], history = [], onResetStats }) 
     );
   }
 
-  // 통계 계산
+  // 통계 정밀 계산
   const gamesList = safePlayers.map((p) => p.gamesPlayed || 0);
   const maxGames = Math.max(...gamesList, 0);
   const minGames = Math.min(...gamesList, 0);
   const totalGamesSum = gamesList.reduce((a, b) => a + b, 0);
-  const avgGames = (totalGamesSum / (safePlayers.length || 1)).toFixed(1);
+  const avgGamesNum = totalGamesSum / (safePlayers.length || 1);
+  const avgGames = avgGamesNum.toFixed(1);
 
   const diff = maxGames - minGames;
-  const equitabilityPercent = Math.max(0, Math.min(100, 100 - diff * 15));
+
+  // 공평도 계산식 (격차 및 표준 편차 완화)
+  let equitabilityPercent = 100;
+  if (totalGamesSum > 0) {
+    if (diff === 0) {
+      equitabilityPercent = 100;
+    } else if (diff === 1) {
+      equitabilityPercent = 98;
+    } else if (diff === 2) {
+      equitabilityPercent = 92;
+    } else {
+      const penalty = Math.min(60, diff * 8);
+      equitabilityPercent = Math.max(40, 100 - penalty);
+    }
+  }
 
   const topPlayer = safePlayers.find((p) => (p.gamesPlayed || 0) === maxGames);
-  const mostRestPlayer = [...safePlayers].sort((a, b) => (b.consecutiveRest || 0) - (a.consecutiveRest || 0))[0];
+  const mostRestPlayer = [...safePlayers].sort((a, b) => {
+    const rA = (a.totalRestCount || 0) + (a.consecutiveRest || 0);
+    const rB = (b.totalRestCount || 0) + (b.consecutiveRest || 0);
+    return rB - rA;
+  })[0];
 
   return (
     <div className="space-y-8">
@@ -47,7 +66,7 @@ export default function StatsView({ players = [], history = [], onResetStats }) 
           <div className="text-left sm:text-right">
             <span className="text-2xl font-black text-[#3182f6]">{equitabilityPercent}%</span>
             <div className="text-[11px] font-bold text-[#4e5968] whitespace-nowrap">
-              {diff <= 1 ? '✨ 완벽하게 공평함' : diff <= 2 ? '👍 매우 잘 조율됨' : '⚖️ 조율 중'}
+              {diff <= 1 ? '✨ 완벽하게 공평함' : diff <= 2 ? '👍 매우 잘 조율됨' : '⚖️ 순차적 출전 조율 중'}
             </div>
           </div>
         </div>
@@ -77,7 +96,7 @@ export default function StatsView({ players = [], history = [], onResetStats }) 
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[11px] font-bold text-[#1b64da] uppercase whitespace-nowrap">🔥 최다 출전 챔피언</div>
-              <div className="font-bold text-base text-[#191f28] truncate">{topPlayer.name} ({topPlayer.tier}급)</div>
+              <div className="font-bold text-base text-[#191f28] truncate">{topPlayer.name} ({topPlayer.gender === 'F' ? '여' : '남'}, {topPlayer.tier}급)</div>
               <div className="text-xs text-[#4e5968] font-semibold mt-0.5 whitespace-nowrap">총 <strong className="text-[#3182f6]">{topPlayer.gamesPlayed || 0}경기</strong> 출전 완료</div>
             </div>
           </div>
@@ -90,14 +109,14 @@ export default function StatsView({ players = [], history = [], onResetStats }) 
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-[11px] font-bold text-amber-800 uppercase whitespace-nowrap">💤 최장 휴식 대기자</div>
-              <div className="font-bold text-base text-[#191f28] truncate">{mostRestPlayer.name} ({mostRestPlayer.tier}급)</div>
-              <div className="text-xs text-[#4e5968] font-semibold mt-0.5 whitespace-nowrap">최근 <strong className="text-amber-600">{mostRestPlayer.consecutiveRest || 0}경기 연속</strong> 휴식 중</div>
+              <div className="font-bold text-base text-[#191f28] truncate">{mostRestPlayer.name} ({mostRestPlayer.gender === 'F' ? '여' : '남'}, {mostRestPlayer.tier}급)</div>
+              <div className="text-xs text-[#4e5968] font-semibold mt-0.5 whitespace-nowrap">총 <strong className="text-amber-600">{mostRestPlayer.totalRestCount || mostRestPlayer.consecutiveRest || 0}회</strong> 휴식 중</div>
             </div>
           </div>
         )}
       </div>
 
-      {/* SECTION 3: PLAYER STATS LIST (반응형 완벽 개편 - 찌그러짐 0%) */}
+      {/* SECTION 3: PLAYER STATS LIST */}
       <div className="tds-card border border-[#e5e8eb] overflow-hidden">
         <div className="p-4 sm:p-5 border-b border-[#e5e8eb] flex items-center justify-between bg-white flex-wrap gap-2">
           <h3 className="font-bold text-base text-[#191f28] whitespace-nowrap">선수별 상세 경기 출전 이력</h3>
@@ -108,7 +127,7 @@ export default function StatsView({ players = [], history = [], onResetStats }) 
         <div className="block md:hidden divide-y divide-[#e5e8eb] bg-white">
           {safePlayers.map((player) => {
             const games = player.gamesPlayed || 0;
-            const rest = player.consecutiveRest || 0;
+            const rest = player.totalRestCount || player.consecutiveRest || 0;
             const isMax = games === maxGames && games > 0;
             const isMin = games === minGames;
 
@@ -124,11 +143,11 @@ export default function StatsView({ players = [], history = [], onResetStats }) 
                       <span className={`px-2 py-0.5 rounded font-bold text-[10px] whitespace-nowrap ${
                         player.tier === 'A' ? 'bg-[#e8f3ff] text-[#1b64da]' : player.tier === 'B' ? 'bg-amber-100 text-amber-800' : 'bg-gray-200 text-gray-700'
                       }`}>
-                        {player.tier}급
+                        {player.gender === 'F' ? '여' : '남'}·{player.tier}급
                       </span>
                     </div>
                     <div className="text-xs text-[#8b95a1] font-medium mt-0.5 whitespace-nowrap">
-                      {games > avgGames ? '평균 이상 출전' : games < avgGames ? '우선 출전 대상' : '평균 출전 달성'}
+                      {games > avgGamesNum ? '평균 이상 출전' : games < avgGamesNum ? '우선 출전 대상' : '평균 출전 달성'}
                     </div>
                   </div>
                 </div>
@@ -138,7 +157,7 @@ export default function StatsView({ players = [], history = [], onResetStats }) 
                     🎮 {games}경기 뜀
                   </div>
                   <div className="text-xs font-extrabold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-xl whitespace-nowrap">
-                    💤 {rest}경기 쉼
+                    💤 총 {rest}회 쉼
                   </div>
                 </div>
               </div>
@@ -152,16 +171,16 @@ export default function StatsView({ players = [], history = [], onResetStats }) 
             <thead className="bg-[#f9fafb] border-b border-[#e5e8eb] text-[#4e5968] font-bold">
               <tr>
                 <th className="px-6 py-4 whitespace-nowrap">선수명</th>
-                <th className="px-6 py-4 whitespace-nowrap">실력 등급</th>
+                <th className="px-6 py-4 whitespace-nowrap">성별 / 실력</th>
                 <th className="px-6 py-4 text-center whitespace-nowrap">총 경기 수 (🎮)</th>
-                <th className="px-6 py-4 text-center whitespace-nowrap">최근 휴식 횟수 (💤)</th>
+                <th className="px-6 py-4 text-center whitespace-nowrap">총 휴식 횟수 (💤)</th>
                 <th className="px-6 py-4 text-right whitespace-nowrap">출전 밸런스 상태</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e5e8eb] bg-white">
               {safePlayers.map((player) => {
                 const games = player.gamesPlayed || 0;
-                const rest = player.consecutiveRest || 0;
+                const rest = player.totalRestCount || player.consecutiveRest || 0;
                 const isMax = games === maxGames && games > 0;
                 const isMin = games === minGames;
 
@@ -178,7 +197,7 @@ export default function StatsView({ players = [], history = [], onResetStats }) 
                       <span className={`px-2.5 py-1 rounded-lg font-bold text-[11px] whitespace-nowrap ${
                         player.tier === 'A' ? 'bg-[#e8f3ff] text-[#1b64da]' : player.tier === 'B' ? 'bg-amber-100 text-amber-800' : 'bg-gray-200 text-gray-700'
                       }`}>
-                        {player.tier} 등급
+                        {player.gender === 'F' ? '여 ♀️' : '남 ♂️'} · {player.tier} 등급
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center font-extrabold text-[#3182f6] text-sm whitespace-nowrap">
@@ -189,7 +208,7 @@ export default function StatsView({ players = [], history = [], onResetStats }) 
                     </td>
                     <td className="px-6 py-4 text-right whitespace-nowrap">
                       <span className={`font-bold whitespace-nowrap ${isMax ? 'text-[#3182f6]' : isMin ? 'text-amber-600' : 'text-[#4e5968]'}`}>
-                        {games > avgGames ? '평균 이상 출전' : games < avgGames ? '우선 출전 대상' : '평균 출전 달성'}
+                        {games > avgGamesNum ? '평균 이상 출전' : games < avgGamesNum ? '우선 출전 대상' : '평균 출전 달성'}
                       </span>
                     </td>
                   </tr>
