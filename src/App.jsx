@@ -78,13 +78,14 @@ export default function App() {
     }
   }, []);
 
+  // 리셋 및 빈 배열([]) 상태도 100% 무조건 원격 DB와 무결성 동기화
   const applyRemoteSession = (data) => {
     if (!data) return;
-    if (Array.isArray(data.players)) setPlayers(data.players);
-    if (Array.isArray(data.activeCourts)) setActiveCourts(data.activeCourts);
-    if (Array.isArray(data.nextCourts)) setNextCourts(data.nextCourts);
-    if (Array.isArray(data.restingPlayers)) setRestingPlayers(data.restingPlayers);
-    if (Array.isArray(data.history)) setHistory(data.history);
+    setPlayers(Array.isArray(data.players) ? data.players : []);
+    setActiveCourts(Array.isArray(data.activeCourts) ? data.activeCourts : []);
+    setNextCourts(Array.isArray(data.nextCourts) ? data.nextCourts : []);
+    setRestingPlayers(Array.isArray(data.restingPlayers) ? data.restingPlayers : []);
+    setHistory(Array.isArray(data.history) ? data.history : []);
     if (data.settings && Array.isArray(data.settings.enabledCourts)) {
       setEnabledCourts(data.settings.enabledCourts);
     }
