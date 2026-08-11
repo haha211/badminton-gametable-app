@@ -21,9 +21,9 @@ export const supabase = isSupabaseConfigured
 const SESSION_ROOM_ID = 'default_badminton_room';
 
 /**
- * Supabase DB에서 최신 대진표 세션 데이터 가져오기
+ * Supabase DB에서 최신 대진표 세션 데이터 가져오기 (없으면 최초 자동 생성)
  */
-export async function fetchBadmintonSession() {
+export async function fetchBadmintonSession(fallbackSession) {
   if (!isSupabaseConfigured || !supabase) return null;
 
   try {
@@ -36,6 +36,12 @@ export async function fetchBadmintonSession() {
     if (error) {
       console.error('Supabase fetch error:', error);
       return null;
+    }
+
+    // 만약 DB에 아직 생성된 방 세션이 없으면 현재 기기의 세션을 DB 최초 1회 생성
+    if (!data && fallbackSession) {
+      await updateBadmintonSession(fallbackSession);
+      return fallbackSession;
     }
 
     return data ? data.session_data : null;
@@ -72,7 +78,7 @@ export async function updateBadmintonSession(sessionData) {
 }
 
 /**
- * Supabase Realtime 채널 실시간 구독 (모바일 웹소켓 자동 재연결 지원)
+ * Supabase Realtime 채널 실시간 구독
  */
 export function subscribeToBadmintonSession(onSessionUpdate) {
   if (!isSupabaseConfigured || !supabase) return () => {};
@@ -85,7 +91,7 @@ export function subscribeToBadmintonSession(onSessionUpdate) {
     }
 
     channel = supabase
-      .channel(`badminton_realtime_${Date.now()}`)
+      .channel(`badminton_realtime_global`)
       .on(
         'postgres_changes',
         {
@@ -101,9 +107,8 @@ export function subscribeToBadmintonSession(onSessionUpdate) {
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log('⚡ Realtime Subscribed for Mobile & PC!');
+          console.log('⚡ Global Realtime Sync Active!');
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          // 모바일에서 끊겼을 시 2초 후 자동 재구독
           setTimeout(initChannel, 2000);
         }
       });

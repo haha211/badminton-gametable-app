@@ -36,8 +36,17 @@ export default function App() {
 
   useEffect(() => {
     if (isSupabaseConfigured) {
+      const currentSessionObj = {
+        players,
+        activeCourts,
+        nextCourts,
+        restingPlayers,
+        history,
+        settings: { enabledCourts },
+      };
+
       const syncRemoteData = () => {
-        fetchBadmintonSession().then((remoteData) => {
+        fetchBadmintonSession(currentSessionObj).then((remoteData) => {
           if (remoteData) {
             applyRemoteSession(remoteData);
           }
@@ -127,7 +136,6 @@ export default function App() {
     syncSession(players, filteredActive, predicted, restingPlayers, history, nextEnabled);
   };
 
-  // 대진표 섞기 (쉬는 횟수 누적 보존 픽스)
   const handleGenerateMatches = (overrideCourts = enabledCourts) => {
     const activeList = players.filter((p) => p.isPresent !== false);
     if (activeList.length < 4) {
@@ -145,7 +153,6 @@ export default function App() {
       result.courts.flatMap((c) => [...c.team1, ...c.team2].map((p) => p.id))
     );
 
-    // 선수별 경기수 및 쉬는 횟수 누적 계산 (+1 정확히 누적)
     const updatedPlayers = players.map((p) => {
       if (p.isPresent === false) return p;
 
@@ -166,7 +173,6 @@ export default function App() {
       }
     });
 
-    // 업데이트된 선수 객체들을 기반으로 쉬고 있는 인원 추출 (누적 반영된 객체 사용)
     const updatedRestingPlayers = updatedPlayers.filter(
       (p) => p.isPresent !== false && !playingPlayerIds.has(p.id)
     );
