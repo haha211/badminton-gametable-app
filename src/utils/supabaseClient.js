@@ -9,8 +9,11 @@ export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
       realtime: {
         params: {
-          eventsPerSecond: 10,
+          eventsPerSecond: 20,
         },
+      },
+      auth: {
+        persistSession: false,
       },
     })
   : null;
@@ -18,7 +21,7 @@ export const supabase = isSupabaseConfigured
 const SESSION_ROOM_ID = 'default_badminton_room';
 
 /**
- * Supabase에서 최신 대진표 세션 데이터 가져오기
+ * Supabase DB에서 최신 대진표 세션 데이터 가져오기
  */
 export async function fetchBadmintonSession() {
   if (!isSupabaseConfigured || !supabase) return null;
@@ -43,7 +46,7 @@ export async function fetchBadmintonSession() {
 }
 
 /**
- * Supabase DB에 변경된 대진표 세션 데이터 실시간 저장/업데이트
+ * Supabase DB에 세션 데이터 실시간 저장 (upsert)
  */
 export async function updateBadmintonSession(sessionData) {
   if (!isSupabaseConfigured || !supabase) return;
@@ -69,33 +72,46 @@ export async function updateBadmintonSession(sessionData) {
 }
 
 /**
- * Supabase Realtime 채널을 통해 다른 기기 변경사항을 1초 만에 실시간 수신
+ * Supabase Realtime 채널 실시간 구독 (모바일 웹소켓 자동 재연결 지원)
  */
 export function subscribeToBadmintonSession(onSessionUpdate) {
   if (!isSupabaseConfigured || !supabase) return () => {};
 
-  const channel = supabase
-    .channel('badminton_sessions_channel')
-    .on(
-      'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'badminton_sessions',
-      },
-      (payload) => {
-        if (payload.new && payload.new.session_data) {
-          onSessionUpdate(payload.new.session_data);
+  let channel = null;
+
+  const initChannel = () => {
+    if (channel) {
+      supabase.removeChannel(channel);
+    }
+
+    channel = supabase
+      .channel(`badminton_realtime_${Date.now()}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'badminton_sessions',
+        },
+        (payload) => {
+          if (payload.new && payload.new.session_data) {
+            onSessionUpdate(payload.new.session_data);
+          }
         }
-      }
-    )
-    .subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        console.log('⚡ Supabase Realtime Subscribed Successfully!');
-      }
-    });
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('⚡ Realtime Subscribed for Mobile & PC!');
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          // 모바일에서 끊겼을 시 2초 후 자동 재구독
+          setTimeout(initChannel, 2000);
+        }
+      });
+  };
+
+  initChannel();
 
   return () => {
-    supabase.removeChannel(channel);
+    if (channel) supabase.removeChannel(channel);
   };
 }

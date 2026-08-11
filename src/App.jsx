@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import CourtBoard from './components/CourtBoard';
 import PlayerManager from './components/PlayerManager';
@@ -34,14 +34,18 @@ export default function App() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isWebInfoModalOpen, setIsWebInfoModalOpen] = useState(false);
 
-  // 1. 초기 마운트 시 원격 Supabase DB에서 데이터를 받아와 동기화 (원격 데이터가 있는 경우만 덮어씀)
+  // 1. Supabase Realtime DB 초기 수신 및 스마트폰 복귀 시 자동 재동기화
   useEffect(() => {
     if (isSupabaseConfigured) {
-      fetchBadmintonSession().then((remoteData) => {
-        if (remoteData && Array.isArray(remoteData.players) && remoteData.players.length > 0) {
-          applyRemoteSession(remoteData);
-        }
-      });
+      const syncRemoteData = () => {
+        fetchBadmintonSession().then((remoteData) => {
+          if (remoteData) {
+            applyRemoteSession(remoteData);
+          }
+        });
+      };
+
+      syncRemoteData();
 
       const unsubscribe = subscribeToBadmintonSession((remoteData) => {
         if (remoteData) {
@@ -49,7 +53,21 @@ export default function App() {
         }
       });
 
-      return () => unsubscribe();
+      // 스마트폰 화면을 껐다 켜거나 탭으로 복귀했을 때 즉시 최신 데이터 재수신
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          syncRemoteData();
+        }
+      };
+
+      window.addEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('focus', syncRemoteData);
+
+      return () => {
+        unsubscribe();
+        window.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('focus', syncRemoteData);
+      };
     }
   }, []);
 
@@ -264,7 +282,6 @@ export default function App() {
     syncSession(updatedPlayers, updatedCourts, predicted, restingPlayers, history, enabledCourts);
   };
 
-  // 선수 추가 핸들러
   const handleAddPlayer = (name, tier) => {
     if (players.length >= 16) {
       alert('최대 인원은 16명까지입니다.');
