@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './components/Header';
 import CourtBoard from './components/CourtBoard';
 import PlayerManager from './components/PlayerManager';
@@ -19,11 +19,11 @@ import {
 export default function App() {
   const [session, setSession] = useState(() => loadFullSession());
 
-  const [players, setPlayers] = useState(session.players);
-  const [activeCourts, setActiveCourts] = useState(session.activeCourts);
-  const [nextCourts, setNextCourts] = useState(session.nextCourts);
-  const [restingPlayers, setRestingPlayers] = useState(session.restingPlayers);
-  const [history, setHistory] = useState(session.history);
+  const [players, setPlayers] = useState(session.players || []);
+  const [activeCourts, setActiveCourts] = useState(session.activeCourts || []);
+  const [nextCourts, setNextCourts] = useState(session.nextCourts || []);
+  const [restingPlayers, setRestingPlayers] = useState(session.restingPlayers || []);
+  const [history, setHistory] = useState(session.history || []);
 
   const [enabledCourts, setEnabledCourts] = useState(
     session.settings?.enabledCourts || [1, 2, 3]
@@ -34,24 +34,18 @@ export default function App() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isWebInfoModalOpen, setIsWebInfoModalOpen] = useState(false);
 
-  // DB 원격 데이터 초기 수신 전 로컬스토리지 역송신 방지 플래그
-  const isInitializedRef = useRef(!isSupabaseConfigured);
-
-  // 1. Supabase Realtime DB 초기 수신 및 실시간 동기화
+  // 1. 초기 마운트 시 원격 Supabase DB에서 데이터를 받아와 동기화 (원격 데이터가 있는 경우만 덮어씀)
   useEffect(() => {
     if (isSupabaseConfigured) {
-      // 서버 최신 DB 데이터를 최우선으로 받아옴
       fetchBadmintonSession().then((remoteData) => {
-        if (remoteData) {
-          applySessionData(remoteData);
+        if (remoteData && Array.isArray(remoteData.players) && remoteData.players.length > 0) {
+          applyRemoteSession(remoteData);
         }
-        isInitializedRef.current = true;
       });
 
-      // 다른 스마트폰 변경사항 1초 실시간 구독
       const unsubscribe = subscribeToBadmintonSession((remoteData) => {
         if (remoteData) {
-          applySessionData(remoteData);
+          applyRemoteSession(remoteData);
         }
       });
 
@@ -59,7 +53,7 @@ export default function App() {
     }
   }, []);
 
-  const applySessionData = (data) => {
+  const applyRemoteSession = (data) => {
     if (!data) return;
     if (Array.isArray(data.players)) setPlayers(data.players);
     if (Array.isArray(data.activeCourts)) setActiveCourts(data.activeCourts);
@@ -71,23 +65,30 @@ export default function App() {
     }
   };
 
-  // 2. 데이터 변경 시 Supabase DB 및 LocalStorage에 업데이트 (초기화 수신 후에만 송신)
-  useEffect(() => {
+  // 2. 세션 동기화 헬퍼 (로컬스토리지 및 Supabase DB에 항상 동시 반영)
+  const syncSession = (newPlayers, newActive, newNext, newResting, newHistory, newEnabled) => {
+    const p = newPlayers !== undefined ? newPlayers : players;
+    const ac = newActive !== undefined ? newActive : activeCourts;
+    const nc = newNext !== undefined ? newNext : nextCourts;
+    const rp = newResting !== undefined ? newResting : restingPlayers;
+    const h = newHistory !== undefined ? newHistory : history;
+    const ec = newEnabled !== undefined ? newEnabled : enabledCourts;
+
     const sessionObj = {
-      players,
-      activeCourts,
-      nextCourts,
-      restingPlayers,
-      history,
-      settings: { enabledCourts },
+      players: p,
+      activeCourts: ac,
+      nextCourts: nc,
+      restingPlayers: rp,
+      history: h,
+      settings: { enabledCourts: ec },
     };
 
     saveFullSession(sessionObj);
 
-    if (isSupabaseConfigured && isInitializedRef.current) {
+    if (isSupabaseConfigured) {
       updateBadmintonSession(sessionObj);
     }
-  }, [players, activeCourts, nextCourts, restingPlayers, history, enabledCourts]);
+  };
 
   const handleToggleCourt = (courtId) => {
     let nextEnabled;
@@ -102,12 +103,13 @@ export default function App() {
     }
 
     setEnabledCourts(nextEnabled);
-
     const filteredActive = activeCourts.filter((c) => nextEnabled.includes(c.id));
     setActiveCourts(filteredActive);
 
     const predicted = predictNextRound(players, filteredActive, nextEnabled);
     setNextCourts(predicted);
+
+    syncSession(players, filteredActive, predicted, restingPlayers, history, nextEnabled);
   };
 
   const handleGenerateMatches = (overrideCourts = enabledCourts) => {
@@ -122,12 +124,6 @@ export default function App() {
       alert(result.message);
       return;
     }
-
-    setActiveCourts(result.courts);
-    setRestingPlayers(result.restingPlayers);
-
-    const predicted = predictNextRound(players, result.courts, overrideCourts);
-    setNextCourts(predicted);
 
     const playingPlayerIds = new Set(
       result.courts.flatMap((c) => [...c.team1, ...c.team2].map((p) => p.id))
@@ -152,8 +148,15 @@ export default function App() {
       }
     });
 
+    const predicted = predictNextRound(updatedPlayers, result.courts, overrideCourts);
+
     setPlayers(updatedPlayers);
+    setActiveCourts(result.courts);
+    setRestingPlayers(result.restingPlayers);
+    setNextCourts(predicted);
     setActiveTab('courts');
+
+    syncSession(updatedPlayers, result.courts, predicted, result.restingPlayers, history, overrideCourts);
   };
 
   const handleRotateSingleCourt = (courtId) => {
@@ -198,8 +201,6 @@ export default function App() {
       updatedCourts.push(newCourtData);
     }
 
-    setActiveCourts(updatedCourts);
-
     const newFourIds = new Set(fourPlayers.map((p) => p.id));
     const updatedPlayers = players.map((p) => {
       if (newFourIds.has(p.id)) {
@@ -213,10 +214,13 @@ export default function App() {
       return p;
     });
 
-    setPlayers(updatedPlayers);
-
     const predicted = predictNextRound(updatedPlayers, updatedCourts, enabledCourts);
+
+    setPlayers(updatedPlayers);
+    setActiveCourts(updatedCourts);
     setNextCourts(predicted);
+
+    syncSession(updatedPlayers, updatedCourts, predicted, restingPlayers, history, enabledCourts);
   };
 
   const handleConfirmManualAssign = (courtId, team1, team2) => {
@@ -238,8 +242,6 @@ export default function App() {
       updatedCourts.push(newCourtData);
     }
 
-    setActiveCourts(updatedCourts);
-
     const assignedIds = new Set([...team1, ...team2].map((p) => p.id));
     const updatedPlayers = players.map((p) => {
       if (assignedIds.has(p.id)) {
@@ -253,12 +255,16 @@ export default function App() {
       return p;
     });
 
-    setPlayers(updatedPlayers);
-
     const predicted = predictNextRound(updatedPlayers, updatedCourts, enabledCourts);
+
+    setPlayers(updatedPlayers);
+    setActiveCourts(updatedCourts);
     setNextCourts(predicted);
+
+    syncSession(updatedPlayers, updatedCourts, predicted, restingPlayers, history, enabledCourts);
   };
 
+  // 선수 추가 핸들러
   const handleAddPlayer = (name, tier) => {
     if (players.length >= 16) {
       alert('최대 인원은 16명까지입니다.');
@@ -278,16 +284,22 @@ export default function App() {
       opponentHistory: {},
     };
 
-    setPlayers([...players, ...newPlayer]);
+    const updated = [...players, newPlayer];
+    setPlayers(updated);
+    syncSession(updated);
   };
 
   const handleUpdatePlayer = (id, updates) => {
-    setPlayers(players.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+    const updated = players.map((p) => (p.id === id ? { ...p, ...updates } : p));
+    setPlayers(updated);
+    syncSession(updated);
   };
 
   const handleDeletePlayer = (id) => {
     if (confirm('이 참가자를 명단에서 삭제하시겠습니까?')) {
-      setPlayers(players.filter((p) => p.id !== id));
+      const updated = players.filter((p) => p.id !== id);
+      setPlayers(updated);
+      syncSession(updated);
     }
   };
 
@@ -296,12 +308,15 @@ export default function App() {
     setActiveCourts([]);
     setNextCourts([]);
     setRestingPlayers([]);
+    syncSession([], [], [], [], history, enabledCourts);
   };
 
   const handleTogglePresent = (id) => {
-    setPlayers(
-      players.map((p) => (p.id === id ? { ...p, isPresent: p.isPresent === false } : p))
+    const updated = players.map((p) =>
+      p.id === id ? { ...p, isPresent: p.isPresent === false } : p
     );
+    setPlayers(updated);
+    syncSession(updated);
   };
 
   const handleImportPlayers = (detectedList) => {
@@ -330,7 +345,9 @@ export default function App() {
       }
     }
 
-    setPlayers([...players, ...newItems]);
+    const updated = [...players, ...newItems];
+    setPlayers(updated);
+    syncSession(updated);
     alert(`${newItems.length}명의 새 참가자가 성공적으로 명단에 등록되었습니다!`);
   };
 
@@ -342,6 +359,7 @@ export default function App() {
       setNextCourts([]);
       setRestingPlayers([]);
       setHistory([]);
+      syncSession(resetPlayers, [], [], [], [], enabledCourts);
       alert('데이터가 성공적으로 초기화되었습니다.');
     }
   };
