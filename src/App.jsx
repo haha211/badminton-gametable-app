@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from './components/Header';
 import CourtBoard from './components/CourtBoard';
 import PlayerManager from './components/PlayerManager';
@@ -34,17 +34,21 @@ export default function App() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isWebInfoModalOpen, setIsWebInfoModalOpen] = useState(false);
 
-  // 1. Supabase Realtime DB 초기 수신 및 실시간 구독 (모든 스마트폰 1초 동기화)
+  // DB 원격 데이터 초기 수신 전 로컬스토리지 역송신 방지 플래그
+  const isInitializedRef = useRef(!isSupabaseConfigured);
+
+  // 1. Supabase Realtime DB 초기 수신 및 실시간 동기화
   useEffect(() => {
     if (isSupabaseConfigured) {
-      // 초기 최신 DB 세션 가져오기
+      // 서버 최신 DB 데이터를 최우선으로 받아옴
       fetchBadmintonSession().then((remoteData) => {
         if (remoteData) {
           applySessionData(remoteData);
         }
+        isInitializedRef.current = true;
       });
 
-      // 다른 스마트폰에서 수정한 내용 1초 실시간 동기화 구독
+      // 다른 스마트폰 변경사항 1초 실시간 구독
       const unsubscribe = subscribeToBadmintonSession((remoteData) => {
         if (remoteData) {
           applySessionData(remoteData);
@@ -56,25 +60,18 @@ export default function App() {
   }, []);
 
   const applySessionData = (data) => {
-    if (data.players !== undefined) setPlayers(data.players || []);
-    if (data.activeCourts !== undefined) setActiveCourts(data.activeCourts || []);
-    if (data.nextCourts !== undefined) setNextCourts(data.nextCourts || []);
-    if (data.restingPlayers !== undefined) setRestingPlayers(data.restingPlayers || []);
-    if (data.history !== undefined) setHistory(data.history || []);
-    if (data.settings?.enabledCourts !== undefined) {
+    if (!data) return;
+    if (Array.isArray(data.players)) setPlayers(data.players);
+    if (Array.isArray(data.activeCourts)) setActiveCourts(data.activeCourts);
+    if (Array.isArray(data.nextCourts)) setNextCourts(data.nextCourts);
+    if (Array.isArray(data.restingPlayers)) setRestingPlayers(data.restingPlayers);
+    if (Array.isArray(data.history)) setHistory(data.history);
+    if (data.settings && Array.isArray(data.settings.enabledCourts)) {
       setEnabledCourts(data.settings.enabledCourts);
     }
   };
 
-  useEffect(() => {
-    if (session.autoResetOccurred) {
-      setTimeout(() => {
-        alert('📅 날짜가 변경(자정이 지남)되어 이전 경기 출전 기록 및 대진 상태가 새로 자동으로 리셋되었습니다!');
-      }, 500);
-    }
-  }, []);
-
-  // 2. 세션 변경 시 LocalStorage & Supabase DB에 동시 실시간 업데이트
+  // 2. 데이터 변경 시 Supabase DB 및 LocalStorage에 업데이트 (초기화 수신 후에만 송신)
   useEffect(() => {
     const sessionObj = {
       players,
@@ -87,16 +84,10 @@ export default function App() {
 
     saveFullSession(sessionObj);
 
-    if (isSupabaseConfigured) {
+    if (isSupabaseConfigured && isInitializedRef.current) {
       updateBadmintonSession(sessionObj);
     }
   }, [players, activeCourts, nextCourts, restingPlayers, history, enabledCourts]);
-
-  useEffect(() => {
-    if (activeCourts.length === 0 && players.length >= 4) {
-      handleGenerateMatches();
-    }
-  }, []);
 
   const handleToggleCourt = (courtId) => {
     let nextEnabled;
@@ -287,7 +278,7 @@ export default function App() {
       opponentHistory: {},
     };
 
-    setPlayers([...players, newPlayer]);
+    setPlayers([...players, ...newPlayer]);
   };
 
   const handleUpdatePlayer = (id, updates) => {
