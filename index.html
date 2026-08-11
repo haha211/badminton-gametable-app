@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏸</text></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#f9fafb" />
+    <meta name="description" content="배드민턴 게임판 - 스마트 대진표 매칭 서비스" />
+    <title>배드민턴 게임판 - 스마트 코트 매처</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              toss: {
+                blue: '#3182f6',
+                blueHover: '#2272eb',
+                blueWeakBg: '#e8f3ff',
+                blueWeakFg: '#1b64da',
+                black: '#191f28',
+                body: '#4e5968',
+                muted: '#8b95a1',
+                surface: '#f2f4f6',
+                border: '#e5e8eb',
+                danger: '#e42939',
+              }
+            },
+            borderRadius: {
+              'tds': '16px',
+              'tds-lg': '24px',
+            }
+          }
+        }
+      }
+    </script>
+  </head>
+  <body class="bg-[#f2f4f6] text-[#191f28] antialiased min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,440 @@
+import React, { useState, useEffect } from 'react';
+import Header from './components/Header';
+import CourtBoard from './components/CourtBoard';
+import PlayerManager from './components/PlayerManager';
+import StatsView from './components/StatsView';
+import ImageOCRModal from './components/ImageOCRModal';
+import ShareModal from './components/ShareModal';
+import WebShareInfoModal from './components/WebShareInfoModal';
+
+import { loadFullSession, saveFullSession, clearAllSessionData } from './utils/storage';
+import { generateMatches, predictNextRound, getBestDoubleMatch } from './utils/matchmaker';
+import {
+  isSupabaseConfigured,
+  fetchBadmintonSession,
+  updateBadmintonSession,
+  subscribeToBadmintonSession,
+} from './utils/supabaseClient';
+
+export default function App() {
+  const [session, setSession] = useState(() => loadFullSession());
+
+  const [players, setPlayers] = useState(session.players);
+  const [activeCourts, setActiveCourts] = useState(session.activeCourts);
+  const [nextCourts, setNextCourts] = useState(session.nextCourts);
+  const [restingPlayers, setRestingPlayers] = useState(session.restingPlayers);
+  const [history, setHistory] = useState(session.history);
+
+  const [enabledCourts, setEnabledCourts] = useState(
+    session.settings?.enabledCourts || [1, 2, 3]
+  );
+
+  const [activeTab, setActiveTab] = useState('courts');
+  const [isOCRModalOpen, setIsOCRModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isWebInfoModalOpen, setIsWebInfoModalOpen] = useState(false);
+
+  // 1. Supabase Realtime DB 초기 수신 및 실시간 구독 (모든 스마트폰 1초 동기화)
+  useEffect(() => {
+    if (isSupabaseConfigured) {
+      // 초기 최신 DB 세션 가져오기
+      fetchBadmintonSession().then((remoteData) => {
+        if (remoteData) {
+          applySessionData(remoteData);
+        }
+      });
+
+      // 다른 스마트폰에서 수정한 내용 1초 실시간 동기화 구독
+      const unsubscribe = subscribeToBadmintonSession((remoteData) => {
+        if (remoteData) {
+          applySessionData(remoteData);
+        }
+      });
+
+      return () => unsubscribe();
+    }
+  }, []);
+
+  const applySessionData = (data) => {
+    if (data.players !== undefined) setPlayers(data.players || []);
+    if (data.activeCourts !== undefined) setActiveCourts(data.activeCourts || []);
+    if (data.nextCourts !== undefined) setNextCourts(data.nextCourts || []);
+    if (data.restingPlayers !== undefined) setRestingPlayers(data.restingPlayers || []);
+    if (data.history !== undefined) setHistory(data.history || []);
+    if (data.settings?.enabledCourts !== undefined) {
+      setEnabledCourts(data.settings.enabledCourts);
+    }
+  };
+
+  useEffect(() => {
+    if (session.autoResetOccurred) {
+      setTimeout(() => {
+        alert('📅 날짜가 변경(자정이 지남)되어 이전 경기 출전 기록 및 대진 상태가 새로 자동으로 리셋되었습니다!');
+      }, 500);
+    }
+  }, []);
+
+  // 2. 세션 변경 시 LocalStorage & Supabase DB에 동시 실시간 업데이트
+  useEffect(() => {
+    const sessionObj = {
+      players,
+      activeCourts,
+      nextCourts,
+      restingPlayers,
+      history,
+      settings: { enabledCourts },
+    };
+
+    saveFullSession(sessionObj);
+
+    if (isSupabaseConfigured) {
+      updateBadmintonSession(sessionObj);
+    }
+  }, [players, activeCourts, nextCourts, restingPlayers, history, enabledCourts]);
+
+  useEffect(() => {
+    if (activeCourts.length === 0 && players.length >= 4) {
+      handleGenerateMatches();
+    }
+  }, []);
+
+  const handleToggleCourt = (courtId) => {
+    let nextEnabled;
+    if (enabledCourts.includes(courtId)) {
+      if (enabledCourts.length <= 1) {
+        alert('최소 1개 이상의 코트는 켜져 있어야 합니다.');
+        return;
+      }
+      nextEnabled = enabledCourts.filter((c) => c !== courtId);
+    } else {
+      nextEnabled = [...enabledCourts, courtId].sort((a, b) => a - b);
+    }
+
+    setEnabledCourts(nextEnabled);
+
+    const filteredActive = activeCourts.filter((c) => nextEnabled.includes(c.id));
+    setActiveCourts(filteredActive);
+
+    const predicted = predictNextRound(players, filteredActive, nextEnabled);
+    setNextCourts(predicted);
+  };
+
+  const handleGenerateMatches = (overrideCourts = enabledCourts) => {
+    const activeList = players.filter((p) => p.isPresent !== false);
+    if (activeList.length < 4) {
+      alert('경기를 진행하려면 최소 4명의 참석자가 필요합니다. (참가자 관리 탭에서 참석 상태를 확인하세요)');
+      return;
+    }
+
+    const result = generateMatches(players, overrideCourts);
+    if (!result.success) {
+      alert(result.message);
+      return;
+    }
+
+    setActiveCourts(result.courts);
+    setRestingPlayers(result.restingPlayers);
+
+    const predicted = predictNextRound(players, result.courts, overrideCourts);
+    setNextCourts(predicted);
+
+    const playingPlayerIds = new Set(
+      result.courts.flatMap((c) => [...c.team1, ...c.team2].map((p) => p.id))
+    );
+
+    const updatedPlayers = players.map((p) => {
+      if (p.isPresent === false) return p;
+
+      if (playingPlayerIds.has(p.id)) {
+        return {
+          ...p,
+          gamesPlayed: (p.gamesPlayed || 0) + 1,
+          consecutivePlayed: (p.consecutivePlayed || 0) + 1,
+          consecutiveRest: 0,
+        };
+      } else {
+        return {
+          ...p,
+          consecutiveRest: (p.consecutiveRest || 0) + 1,
+          consecutivePlayed: 0,
+        };
+      }
+    });
+
+    setPlayers(updatedPlayers);
+    setActiveTab('courts');
+  };
+
+  const handleRotateSingleCourt = (courtId) => {
+    const activeList = players.filter((p) => p.isPresent !== false);
+    if (activeList.length < 4) return;
+
+    const playingOtherCourtPlayerIds = new Set(
+      activeCourts
+        .filter((c) => c.id !== courtId)
+        .flatMap((c) => [...c.team1, ...c.team2].map((p) => p.id))
+    );
+
+    const availableForThisCourt = activeList.filter((p) => !playingOtherCourtPlayerIds.has(p.id));
+
+    if (availableForThisCourt.length < 4) {
+      alert('대기 중인 인원이 부족합니다. (최소 4명 필요)');
+      return;
+    }
+
+    const sorted = [...availableForThisCourt].sort((a, b) => {
+      const pDiff = (a.gamesPlayed || 0) - (b.gamesPlayed || 0);
+      if (pDiff !== 0) return pDiff;
+      return (b.consecutiveRest || 0) - (a.consecutiveRest || 0);
+    });
+
+    const fourPlayers = sorted.slice(0, 4);
+    const match = getBestDoubleMatch(fourPlayers);
+
+    const newCourtData = {
+      id: courtId,
+      name: `${courtId}번 코트`,
+      status: 'playing',
+      team1: match.team1,
+      team2: match.team2,
+      t1Score: match.t1Score,
+      t2Score: match.t2Score,
+      scoreDiff: match.scoreDiff,
+    };
+
+    const updatedCourts = activeCourts.map((c) => (c.id === courtId ? newCourtData : c));
+    if (!activeCourts.some((c) => c.id === courtId)) {
+      updatedCourts.push(newCourtData);
+    }
+
+    setActiveCourts(updatedCourts);
+
+    const newFourIds = new Set(fourPlayers.map((p) => p.id));
+    const updatedPlayers = players.map((p) => {
+      if (newFourIds.has(p.id)) {
+        return {
+          ...p,
+          gamesPlayed: (p.gamesPlayed || 0) + 1,
+          consecutivePlayed: (p.consecutivePlayed || 0) + 1,
+          consecutiveRest: 0,
+        };
+      }
+      return p;
+    });
+
+    setPlayers(updatedPlayers);
+
+    const predicted = predictNextRound(updatedPlayers, updatedCourts, enabledCourts);
+    setNextCourts(predicted);
+  };
+
+  const handleConfirmManualAssign = (courtId, team1, team2) => {
+    const match = getBestDoubleMatch([...team1, ...team2]);
+
+    const newCourtData = {
+      id: courtId,
+      name: `${courtId}번 코트`,
+      status: 'playing',
+      team1: team1,
+      team2: team2,
+      t1Score: match ? match.t1Score : 0,
+      t2Score: match ? match.t2Score : 0,
+      scoreDiff: match ? match.scoreDiff : 0,
+    };
+
+    const updatedCourts = activeCourts.map((c) => (c.id === courtId ? newCourtData : c));
+    if (!activeCourts.some((c) => c.id === courtId)) {
+      updatedCourts.push(newCourtData);
+    }
+
+    setActiveCourts(updatedCourts);
+
+    const assignedIds = new Set([...team1, ...team2].map((p) => p.id));
+    const updatedPlayers = players.map((p) => {
+      if (assignedIds.has(p.id)) {
+        return {
+          ...p,
+          gamesPlayed: (p.gamesPlayed || 0) + 1,
+          consecutivePlayed: (p.consecutivePlayed || 0) + 1,
+          consecutiveRest: 0,
+        };
+      }
+      return p;
+    });
+
+    setPlayers(updatedPlayers);
+
+    const predicted = predictNextRound(updatedPlayers, updatedCourts, enabledCourts);
+    setNextCourts(predicted);
+  };
+
+  const handleAddPlayer = (name, tier) => {
+    if (players.length >= 16) {
+      alert('최대 인원은 16명까지입니다.');
+      return;
+    }
+    const newPlayer = {
+      id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      name,
+      tier,
+      isPresent: true,
+      gamesPlayed: 0,
+      consecutivePlayed: 0,
+      consecutiveRest: 0,
+      wins: 0,
+      losses: 0,
+      partnerHistory: {},
+      opponentHistory: {},
+    };
+
+    setPlayers([...players, newPlayer]);
+  };
+
+  const handleUpdatePlayer = (id, updates) => {
+    setPlayers(players.map((p) => (p.id === id ? { ...p, ...updates } : p)));
+  };
+
+  const handleDeletePlayer = (id) => {
+    if (confirm('이 참가자를 명단에서 삭제하시겠습니까?')) {
+      setPlayers(players.filter((p) => p.id !== id));
+    }
+  };
+
+  const handleDeleteAllPlayers = () => {
+    setPlayers([]);
+    setActiveCourts([]);
+    setNextCourts([]);
+    setRestingPlayers([]);
+  };
+
+  const handleTogglePresent = (id) => {
+    setPlayers(
+      players.map((p) => (p.id === id ? { ...p, isPresent: p.isPresent === false } : p))
+    );
+  };
+
+  const handleImportPlayers = (detectedList) => {
+    const existingNames = new Set(players.map((p) => p.name));
+    const newItems = [];
+
+    for (const item of detectedList) {
+      if (players.length + newItems.length >= 16) {
+        alert('최대 16명 정원이 차서 일부분만 등록되었습니다.');
+        break;
+      }
+      if (!existingNames.has(item.name)) {
+        newItems.push({
+          id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          name: item.name,
+          tier: item.tier || 'B',
+          isPresent: true,
+          gamesPlayed: 0,
+          consecutivePlayed: 0,
+          consecutiveRest: 0,
+          wins: 0,
+          losses: 0,
+          partnerHistory: {},
+          opponentHistory: {},
+        });
+      }
+    }
+
+    setPlayers([...players, ...newItems]);
+    alert(`${newItems.length}명의 새 참가자가 성공적으로 명단에 등록되었습니다!`);
+  };
+
+  const handleResetAllData = () => {
+    if (confirm('🚨 모든 경기 대진 진행 상황을 완전히 초기화하시겠습니까?')) {
+      const resetPlayers = clearAllSessionData(players);
+      setPlayers(resetPlayers);
+      setActiveCourts([]);
+      setNextCourts([]);
+      setRestingPlayers([]);
+      setHistory([]);
+      alert('데이터가 성공적으로 초기화되었습니다.');
+    }
+  };
+
+  const activePlayersCount = players.filter((p) => p.isPresent !== false).length;
+
+  return (
+    <div className="min-h-screen flex flex-col bg-[#f2f4f6] text-[#191f28] selection:bg-[#3182f6] selection:text-white">
+      {/* Header */}
+      <Header
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onGenerateMatches={() => handleGenerateMatches()}
+        onOpenOCR={() => setIsOCRModalOpen(true)}
+        onOpenShare={() => setIsShareModalOpen(true)}
+        onOpenWebInfo={() => setIsWebInfoModalOpen(true)}
+        enabledCourts={enabledCourts}
+        onToggleCourt={handleToggleCourt}
+        onResetAllData={handleResetAllData}
+        activePlayersCount={activePlayersCount}
+        totalPlayersCount={players.length}
+        isSupabaseConfigured={isSupabaseConfigured}
+      />
+
+      {/* Main Container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
+        {activeTab === 'courts' && (
+          <CourtBoard
+            courts={activeCourts}
+            nextCourts={nextCourts}
+            restingPlayers={restingPlayers}
+            players={players}
+            enabledCourts={enabledCourts}
+            onToggleCourt={handleToggleCourt}
+            onRotateSingleCourt={handleRotateSingleCourt}
+            onConfirmManualAssign={handleConfirmManualAssign}
+            onGenerateMatches={() => handleGenerateMatches()}
+            onOpenOCR={() => setIsOCRModalOpen(true)}
+          />
+        )}
+
+        {activeTab === 'players' && (
+          <PlayerManager
+            players={players}
+            onAddPlayer={handleAddPlayer}
+            onUpdatePlayer={handleUpdatePlayer}
+            onDeletePlayer={handleDeletePlayer}
+            onDeleteAllPlayers={handleDeleteAllPlayers}
+            onTogglePresent={handleTogglePresent}
+            onOpenOCR={() => setIsOCRModalOpen(true)}
+          />
+        )}
+
+        {activeTab === 'stats' && (
+          <StatsView players={players} history={history} onResetStats={handleResetAllData} />
+        )}
+      </main>
+
+      {/* Modals */}
+      <ImageOCRModal
+        isOpen={isOCRModalOpen}
+        onClose={() => setIsOCRModalOpen(false)}
+        onImportPlayers={handleImportPlayers}
+      />
+
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        courts={activeCourts}
+        restingPlayers={restingPlayers}
+      />
+
+      <WebShareInfoModal
+        isOpen={isWebInfoModalOpen}
+        onClose={() => setIsWebInfoModalOpen(false)}
+      />
+
+      {/* Footer */}
+      <footer className="border-t border-[#e5e8eb] py-4 px-6 text-center text-xs text-[#8b95a1] bg-white">
+        <p>
+          🏸 배드민턴 게임판 매칭 시스템 ·{' '}
+          {isSupabaseConfigured ? '⚡ Supabase 1초 실시간 동기화 가동 중' : '🔒 로컬 단독 보존'}
+        </p>
+      </footer>
+    </div>
+  );
+}
