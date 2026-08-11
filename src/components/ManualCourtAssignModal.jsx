@@ -89,7 +89,7 @@ export default function ManualCourtAssignModal({
             </div>
             <div>
               <h2 className="font-bold text-base text-[#191f28]">{court.name} 수동 인원 지정/교체</h2>
-              <p className="text-xs text-[#8b95a1]">선수별 총 경기 수(🎮)와 휴식 수(💤)를 확인하고 지정하세요.</p>
+              <p className="text-xs text-[#8b95a1]">성별(남/여) 및 등급을 고려해 배치하세요.</p>
             </div>
           </div>
           <button
@@ -111,7 +111,7 @@ export default function ManualCourtAssignModal({
                   const p = safePlayers.find((item) => item.id === id);
                   return (
                     <div key={id} className="flex items-center justify-between p-2 rounded-xl bg-[#e8f3ff] text-[#1b64da] text-xs font-bold">
-                      <span>{p ? `${p.name} (${p.tier}급) · 🎮${p.gamesPlayed || 0}회` : '선수'}</span>
+                      <span>{p ? `${p.name} (${p.gender === 'F' ? '여' : '남'}, ${p.tier}급)` : '선수'}</span>
                       <button onClick={() => handleSelectPlayer(id)} className="text-red-500 hover:text-red-700">
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -134,7 +134,7 @@ export default function ManualCourtAssignModal({
                   const p = safePlayers.find((item) => item.id === id);
                   return (
                     <div key={id} className="flex items-center justify-between p-2 rounded-xl bg-amber-50 text-amber-800 text-xs font-bold">
-                      <span>{p ? `${p.name} (${p.tier}급) · 🎮${p.gamesPlayed || 0}회` : '선수'}</span>
+                      <span>{p ? `${p.name} (${p.gender === 'F' ? '여' : '남'}, ${p.tier}급)` : '선수'}</span>
                       <button onClick={() => handleSelectPlayer(id)} className="text-red-500 hover:text-red-700">
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -180,6 +180,7 @@ export default function ManualCourtAssignModal({
                   <div>
                     <div className="font-bold flex items-center gap-1">
                       <span>{p.name}</span>
+                      <span className="text-[10px] text-[#8b95a1]">({p.gender === 'F' ? '여' : '남'})</span>
                       {isPlayingOtherCourt && (
                         <ShieldAlert className="w-3 h-3 text-red-500" />
                       )}

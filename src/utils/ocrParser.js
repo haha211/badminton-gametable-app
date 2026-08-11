@@ -1,8 +1,7 @@
 import { createWorker } from 'tesseract.js';
 
 /**
- * 텍스트에서 이름과 등급(A/B/C)을 정교하게 추출하는 파서
- * 샘플 패턴: "김양/남동/초심A", "경민/중동/초심a", "정익/부평/초심b" 등
+ * 텍스트에서 이름, 성별(M/F), 실력 등급(A/B/C)을 정교하게 추출하는 파서
  */
 export function parsePlayerListFromText(text) {
   if (!text) return [];
@@ -15,37 +14,48 @@ export function parsePlayerListFromText(text) {
     let line = rawLine.trim();
     if (!line || line.length < 2) continue;
 
-    // 1. 불필요한 번호 제거 (1. 2) [1] 등)
+    // 1. 불필요한 번호 제거
     line = line.replace(/^[\d\.\)\-\[\]\s]+/, '').trim();
     if (!line) continue;
 
     let name = '';
     let tier = 'B';
+    let gender = 'M'; // 기본값 남성
     let rawTierStr = '';
 
-    // 2. 슬래시(/) 구분자 분릿 패턴 분석 (예: "김양/남동/초심A", "경민/중동/초심a")
+    // 성별 명시 감지 (남, 여, 남성, 여성, M, F)
+    if (/(여|여성|여자|양|F)/i.test(line)) {
+      gender = 'F';
+    } else if (/(남|남성|남자|M)/i.test(line)) {
+      gender = 'M';
+    }
+
+    // 2. 슬래시(/) 구분자 분리 패턴 분석
     const slashParts = line.split(/[\/\|,\t]+/);
 
     if (slashParts.length >= 2) {
-      // 첫 번째 파트: 이름 (예: "김양", "경민", "맑음")
       const firstPart = slashParts[0].trim();
       const cleanNameMatch = firstPart.match(/([가-힣a-zA-Z0-9]{2,8})/);
       if (cleanNameMatch) {
         name = cleanNameMatch[1];
       }
 
-      // 2번째 또는 3번째 파트에서 등급 찾아내기
       for (let i = 1; i < slashParts.length; i++) {
         const part = slashParts[i].trim();
+        // 파트별 성별 감지
+        if (/^(여|여성|여자|F)$/i.test(part)) {
+          gender = 'F';
+        } else if (/^(남|남성|남자|M)$/i.test(part)) {
+          gender = 'M';
+        }
+
         const parsedTier = parseTierFromWord(part);
         if (parsedTier) {
           tier = parsedTier;
           rawTierStr = part;
-          break;
         }
       }
     } else {
-      // 슬래시가 누락된 경우 한 줄 전체 분석
       const matchCombo = line.match(/([가-힣a-zA-Z0-9]{2,6})[^\w\n]*?([가-힣]*[a-cA-C][급]?|초심[a-cA-C]?|초[a-cA-C]?|준[a-cA-C]?)/i);
       if (matchCombo) {
         name = matchCombo[1];
@@ -54,7 +64,7 @@ export function parsePlayerListFromText(text) {
       }
     }
 
-    // 3. 예외적인 등급 재검증: line 끝부분에 초심a, 초심A, 초심b, 초심B, 초a, 초b 가 포함된 경우
+    // 3. 예외적인 등급 재검증
     if (line) {
       const explicitTierMatch = line.match(/(초심|초|준)?\s*([a-cA-C])(?![a-zA-Z])/i);
       if (explicitTierMatch) {
@@ -65,13 +75,14 @@ export function parsePlayerListFromText(text) {
       }
     }
 
-    // 금지어 필터링 (헤더/지역명 등)
+    // 금지어 필터링
     const stopWords = ['참석자', '명단', '배드민턴', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일', '참석', '불참', '코트', '게임', '회원', '인원', '부평', '강남', '인천', '서울', '경기', '동호회', '계양', '부천', '간석', '남동', '중동'];
 
     if (name && name.length >= 2 && !nameSet.has(name) && !stopWords.includes(name)) {
       nameSet.add(name);
       detectedPlayers.push({
         name,
+        gender,
         tier: ['A', 'B', 'C'].includes(tier) ? tier : 'B',
         rawTier: rawTierStr || tier,
       });
@@ -81,21 +92,15 @@ export function parsePlayerListFromText(text) {
   return detectedPlayers;
 }
 
-/**
- * 단어에서 A, B, C 등급을 정확하게 판별 (대소문자 무관)
- * 예: "초심A" -> "A", "초심a" -> "A", "초심B" -> "B", "초심b" -> "B"
- */
 function parseTierFromWord(word) {
   if (!word) return null;
   const str = word.trim();
 
-  // 1. 소문자/대문자 A, B, C 매칭
   const matchLetter = str.match(/([a-cA-C])/);
   if (matchLetter) {
     return matchLetter[1].toUpperCase();
   }
 
-  // 2. 한글 등급 표현 매핑
   if (/초심|입문|하급/i.test(str)) {
     return 'C';
   }
@@ -103,14 +108,10 @@ function parseTierFromWord(word) {
   return null;
 }
 
-/**
- * 이미지 OCR 추출 (다크모드/라이트모드 자동 감지 및 스마트 전처리 적용)
- */
 export async function extractPlayersFromImage(imageFile, onProgress) {
   try {
     if (onProgress) onProgress(10, '이미지 스마트 분석 준비 중...');
 
-    // 다크모드/라이트모드 전처리 캔버스 생성
     const processedCanvas = await preprocessSmartCanvas(imageFile);
 
     if (onProgress) onProgress(25, 'Tesseract OCR 엔진 가동 중...');
@@ -121,7 +122,7 @@ export async function extractPlayersFromImage(imageFile, onProgress) {
 
     const { data: { text } } = await worker.recognize(processedCanvas || imageFile);
 
-    if (onProgress) onProgress(85, '이름 및 실력 등급 추출 중...');
+    if (onProgress) onProgress(85, '이름, 성별 및 실력 등급 추출 중...');
 
     await worker.terminate();
 
@@ -136,9 +137,6 @@ export async function extractPlayersFromImage(imageFile, onProgress) {
   }
 }
 
-/**
- * 다크모드 캡처(검은 배경 + 흰 글자)와 라이트모드 캡처 자동 감지 보정
- */
 function preprocessSmartCanvas(imageFile) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -152,7 +150,6 @@ function preprocessSmartCanvas(imageFile) {
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
 
-      // 1. 평균 밝기 측정 (다크모드 캡처 여부 판별)
       let totalBrightness = 0;
       const pixelCount = data.length / 4;
 
@@ -161,22 +158,19 @@ function preprocessSmartCanvas(imageFile) {
       }
 
       const avgBrightness = totalBrightness / pixelCount;
-      const isDarkMode = avgBrightness < 120; // 검은 배경인 경우
+      const isDarkMode = avgBrightness < 120;
 
-      // 2. 다크모드인 경우 색상 반전 (흰 글자를 검은 글자로)하여 OCR 인식률 200% 극대화
       for (let i = 0; i < data.length; i += 4) {
         let r = data[i];
         let g = data[i + 1];
         let b = data[i + 2];
 
         if (isDarkMode) {
-          // Invert colors for dark mode images
           r = 255 - r;
           g = 255 - g;
           b = 255 - b;
         }
 
-        // Grayscale conversion & Contrast enhancement
         const gray = 0.299 * r + 0.587 * g + 0.114 * b;
         const contrastVal = gray > 150 ? 255 : (gray < 70 ? 0 : gray);
 

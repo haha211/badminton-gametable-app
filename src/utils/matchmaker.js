@@ -1,155 +1,112 @@
 /**
- * 스마트 배드민턴 대진표 생성 및 밸런싱 알고리즘 (개별 활성 코트 선택 기능 포함)
+ * 배드민턴 스마트 복식 대진 생성기 (성별 가중치 반영)
  */
 
-export const TIER_WEIGHTS = {
-  A: 3,
-  B: 2,
-  C: 1,
+export const TIER_SCORES = {
+  A: 3.0,
+  B: 2.0,
+  C: 1.0,
+};
+
+export const GENDER_WEIGHT = {
+  M: 0.5, // 남성이 약 +0.5pt 체력/파워 실력 보정
+  F: 0.0,
 };
 
 export const TIER_COLORS = {
-  A: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/40', badge: 'bg-emerald-500' },
-  B: { bg: 'bg-amber-500/20', text: 'text-amber-400', border: 'border-amber-500/40', badge: 'bg-amber-500' },
-  C: { bg: 'bg-cyan-500/20', text: 'text-cyan-400', border: 'border-cyan-500/40', badge: 'bg-cyan-500' },
+  A: 'bg-[#e8f3ff] text-[#1b64da] border border-blue-200',
+  B: 'bg-amber-50 text-amber-800 border border-amber-200',
+  C: 'bg-gray-100 text-gray-700 border border-gray-200',
 };
 
 /**
- * 4명의 플레이어로 최적의 복식 대진(2 vs 2) 구성
+ * 선수의 종합 실력 점수 계산 (등급 점수 + 성별 보정)
  */
-export function getBestDoubleMatch(fourPlayers) {
-  if (fourPlayers.length !== 4) return null;
-
-  const combos = [
-    { team1: [fourPlayers[0], fourPlayers[1]], team2: [fourPlayers[2], fourPlayers[3]] },
-    { team1: [fourPlayers[0], fourPlayers[2]], team2: [fourPlayers[1], fourPlayers[3]] },
-    { team1: [fourPlayers[0], fourPlayers[3]], team2: [fourPlayers[1], fourPlayers[2]] },
-  ];
-
-  let bestMatch = null;
-  let minPenalty = Infinity;
-
-  for (const combo of combos) {
-    const t1Score = (TIER_WEIGHTS[combo.team1[0].tier] || 2) + (TIER_WEIGHTS[combo.team1[1].tier] || 2);
-    const t2Score = (TIER_WEIGHTS[combo.team2[0].tier] || 2) + (TIER_WEIGHTS[combo.team2[1].tier] || 2);
-    const scoreDiff = Math.abs(t1Score - t2Score);
-
-    const p1 = combo.team1[0];
-    const p2 = combo.team1[1];
-    const p3 = combo.team2[0];
-    const p4 = combo.team2[1];
-
-    const partnerPenalty = (p1.partnerHistory?.[p2.id] || 0) + (p3.partnerHistory?.[p4.id] || 0);
-    const opponentPenalty = 
-      (p1.opponentHistory?.[p3.id] || 0) + (p1.opponentHistory?.[p4.id] || 0) +
-      (p2.opponentHistory?.[p3.id] || 0) + (p2.opponentHistory?.[p4.id] || 0);
-
-    const totalPenalty = (scoreDiff * 15) + (partnerPenalty * 8) + (opponentPenalty * 3);
-
-    if (totalPenalty < minPenalty) {
-      minPenalty = totalPenalty;
-      bestMatch = {
-        ...combo,
-        t1Score,
-        t2Score,
-        scoreDiff,
-        penalty: totalPenalty,
-      };
-    }
-  }
-
-  return bestMatch;
+export function getPlayerScore(player) {
+  if (!player) return 2.0;
+  const baseTierScore = TIER_SCORES[player.tier] || 2.0;
+  const genderBonus = player.gender === 'M' ? GENDER_WEIGHT.M : GENDER_WEIGHT.F;
+  return baseTierScore + genderBonus;
 }
 
 /**
- * 활성화 선택된 코트 목록(enabledCourts: [1, 2, 3] 등)에 따라 대진표 생성
+ * 4명의 선수로 최적의 2대2 팀 조합(실력 차 최소화) 반환
  */
-export function generateMatches(players, enabledCourts = [1, 2, 3]) {
-  const activePlayers = players.filter((p) => p.isPresent !== false);
-  const totalActive = activePlayers.length;
+export function getBestDoubleMatch(players4) {
+  if (!players4 || players4.length !== 4) return null;
 
-  if (totalActive < 4) {
-    return {
-      success: false,
-      message: '경기를 진행하려면 최소 4명의 참석자가 필요합니다.',
-      courts: [],
-      restingPlayers: activePlayers,
-    };
-  }
+  const [p1, p2, p3, p4] = players4;
 
-  // 선택된 활성 코트 수
-  const sortedEnabledCourts = [...enabledCourts].sort((a, b) => a - b);
-  const targetCourtCount = sortedEnabledCourts.length;
+  const combinations = [
+    { team1: [p1, p2], team2: [p3, p4] },
+    { team1: [p1, p3], team2: [p2, p4] },
+    { team1: [p1, p4], team2: [p2, p3] },
+  ];
 
-  if (targetCourtCount === 0) {
-    return {
-      success: false,
-      message: '최소 1개 이상의 코트를 활성화해주세요.',
-      courts: [],
-      restingPlayers: activePlayers,
-    };
-  }
+  let bestCombo = null;
+  let minDiff = Infinity;
 
-  const maxPossibleCourts = Math.floor(totalActive / 4);
-  const actualCount = Math.min(targetCourtCount, maxPossibleCourts);
+  combinations.forEach((combo) => {
+    const t1Score = getPlayerScore(combo.team1[0]) + getPlayerScore(combo.team1[1]);
+    const t2Score = getPlayerScore(combo.team2[0]) + getPlayerScore(combo.team2[1]);
+    const diff = Math.abs(t1Score - t2Score);
 
-  if (actualCount === 0) {
-    return {
-      success: false,
-      message: `참석자(${totalActive}명)가 부족하여 코트를 가동할 수 없습니다. (최소 4명 필요)`,
-      courts: [],
-      restingPlayers: activePlayers,
-    };
-  }
-
-  const activeCourtList = sortedEnabledCourts.slice(0, actualCount);
-  const playersNeeded = actualCount * 4;
-
-  // 1. 플레이어 선택 가중치 정렬 (경기 수 적은 순 -> 연속 휴식 많은 순 -> 연속 출전 적은 순)
-  const sortedCandidates = [...activePlayers].sort((a, b) => {
-    const playDiff = (a.gamesPlayed || 0) - (b.gamesPlayed || 0);
-    if (playDiff !== 0) return playDiff;
-
-    const restDiff = (b.consecutiveRest || 0) - (a.consecutiveRest || 0);
-    if (restDiff !== 0) return restDiff;
-
-    const playedDiff = (a.consecutivePlayed || 0) - (b.consecutivePlayed || 0);
-    if (playedDiff !== 0) return playedDiff;
-
-    return Math.random() - 0.5;
-  });
-
-  const selectedPlayers = sortedCandidates.slice(0, playersNeeded);
-  const restingPlayers = sortedCandidates.slice(playersNeeded);
-
-  // 2. 선택된 코트들에 등급 밸런스 분배
-  const sortedByTier = [...selectedPlayers].sort((a, b) => {
-    return (TIER_WEIGHTS[b.tier] || 2) - (TIER_WEIGHTS[a.tier] || 2);
-  });
-
-  const courtGroups = Array.from({ length: actualCount }, () => []);
-
-  let dir = 1;
-  let courtIdx = 0;
-  for (let i = 0; i < sortedByTier.length; i++) {
-    courtGroups[courtIdx].push(sortedByTier[i]);
-    courtIdx += dir;
-    if (courtIdx >= actualCount) {
-      courtIdx = actualCount - 1;
-      dir = -1;
-    } else if (courtIdx < 0) {
-      courtIdx = 0;
-      dir = 1;
+    if (diff < minDiff) {
+      minDiff = diff;
+      bestCombo = {
+        team1: combo.team1,
+        team2: combo.team2,
+        t1Score: Math.round(t1Score * 10) / 10,
+        t2Score: Math.round(t2Score * 10) / 10,
+        scoreDiff: Math.round(diff * 10) / 10,
+      };
     }
+  });
+
+  return bestCombo;
+}
+
+/**
+ * 전체 참석자 중 활성화된 코트들에 대해 대진 생성
+ */
+export function generateMatches(players = [], enabledCourts = [1, 2, 3]) {
+  const activePlayers = players.filter((p) => p && p.isPresent !== false);
+
+  if (activePlayers.length < 4) {
+    return {
+      success: false,
+      message: '참석자 인원이 최소 4명 이상이어야 경기를 생성할 수 있습니다.',
+      courts: [],
+      restingPlayers: [],
+    };
   }
 
-  const formattedCourts = [];
-  for (let i = 0; i < actualCount; i++) {
-    const courtId = activeCourtList[i];
-    const group = courtGroups[i];
-    if (group.length === 4) {
-      const match = getBestDoubleMatch(group);
-      formattedCourts.push({
+  const courtCount = enabledCourts.length;
+  const maxPlayersNeeded = courtCount * 4;
+
+  // 정렬 순서: 1) 경기 수 적은 사람 2) 연속 휴식 많은 사람 3) 연속 출전 적은 사람
+  const sortedPlayers = [...activePlayers].sort((a, b) => {
+    const gDiff = (a.gamesPlayed || 0) - (b.gamesPlayed || 0);
+    if (gDiff !== 0) return gDiff;
+
+    const rDiff = (b.consecutiveRest || 0) - (a.consecutiveRest || 0);
+    if (rDiff !== 0) return rDiff;
+
+    return (a.consecutivePlayed || 0) - (b.consecutivePlayed || 0);
+  });
+
+  const selectedPlayers = sortedPlayers.slice(0, maxPlayersNeeded);
+  const restingPlayers = sortedPlayers.slice(maxPlayersNeeded);
+
+  const courts = [];
+  let pIdx = 0;
+
+  for (const courtId of enabledCourts) {
+    if (pIdx + 4 <= selectedPlayers.length) {
+      const courtFour = selectedPlayers.slice(pIdx, pIdx + 4);
+      const match = getBestDoubleMatch(courtFour);
+
+      courts.push({
         id: courtId,
         name: `${courtId}번 코트`,
         status: 'playing',
@@ -158,40 +115,65 @@ export function generateMatches(players, enabledCourts = [1, 2, 3]) {
         t1Score: match.t1Score,
         t2Score: match.t2Score,
         scoreDiff: match.scoreDiff,
-        score1: 0,
-        score2: 0,
       });
+
+      pIdx += 4;
     }
   }
 
   return {
     success: true,
-    actualCourts: actualCount,
-    courts: formattedCourts,
+    courts,
     restingPlayers,
   };
 }
 
 /**
- * 다음 라운드 미리 지정 대진표 계산 헬퍼
+ * 다음 라운드 예비 대진표 예측
  */
-export function predictNextRound(players, currentCourts = [], enabledCourts = [1, 2, 3]) {
-  const activePlayers = players.filter((p) => p.isPresent !== false);
-  if (activePlayers.length < 4) return [];
+export function predictNextRound(players = [], currentActiveCourts = [], enabledCourts = [1, 2, 3]) {
+  const activeList = players.filter((p) => p && p.isPresent !== false);
+  if (activeList.length < 4) return [];
 
-  const simulatedPlayers = activePlayers.map((p) => {
-    const isCurrentlyPlaying = currentCourts.some((c) =>
-      [...c.team1, ...c.team2].some((tp) => tp.id === p.id)
-    );
+  // 다음 라운드 예상 출전수/휴식수 가상 시뮬레이션
+  const playingIds = new Set(
+    currentActiveCourts.flatMap((c) => [...(c.team1 || []), ...(c.team2 || [])].map((p) => p.id))
+  );
 
-    return {
-      ...p,
-      gamesPlayed: (p.gamesPlayed || 0) + (isCurrentlyPlaying ? 1 : 0),
-      consecutiveRest: isCurrentlyPlaying ? 0 : (p.consecutiveRest || 0) + 1,
-      consecutivePlayed: isCurrentlyPlaying ? (p.consecutivePlayed || 0) + 1 : 0,
-    };
+  const simPlayers = activeList.map((p) => {
+    if (playingIds.has(p.id)) {
+      return { ...p, gamesPlayed: (p.gamesPlayed || 0) + 1, consecutiveRest: 0 };
+    } else {
+      return { ...p, consecutiveRest: (p.consecutiveRest || 0) + 1 };
+    }
   });
 
-  const nextResult = generateMatches(simulatedPlayers, enabledCourts);
-  return nextResult.courts || [];
+  const sortedSim = [...simPlayers].sort((a, b) => {
+    const gDiff = (a.gamesPlayed || 0) - (b.gamesPlayed || 0);
+    if (gDiff !== 0) return gDiff;
+    return (b.consecutiveRest || 0) - (a.consecutiveRest || 0);
+  });
+
+  const courtCount = enabledCourts.length;
+  const predictedCourts = [];
+  let idx = 0;
+
+  for (const courtId of enabledCourts) {
+    if (idx + 4 <= sortedSim.length) {
+      const four = sortedSim.slice(idx, idx + 4);
+      const match = getBestDoubleMatch(four);
+
+      predictedCourts.push({
+        id: courtId,
+        name: `${courtId}번 코트`,
+        team1: match.team1,
+        team2: match.team2,
+        scoreDiff: match.scoreDiff,
+      });
+
+      idx += 4;
+    }
+  }
+
+  return predictedCourts;
 }

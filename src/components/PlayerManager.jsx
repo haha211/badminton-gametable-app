@@ -11,6 +11,7 @@ export default function PlayerManager({
   onOpenOCR
 }) {
   const [newName, setNewName] = useState('');
+  const [newGender, setNewGender] = useState('M'); // 기본 남성
   const [newTier, setNewTier] = useState('B');
 
   const handleAdd = (e) => {
@@ -22,7 +23,7 @@ export default function PlayerManager({
       return;
     }
 
-    if (onAddPlayer) onAddPlayer(newName.trim(), newTier);
+    if (onAddPlayer) onAddPlayer(newName.trim(), newTier, newGender);
     setNewName('');
   };
 
@@ -30,6 +31,11 @@ export default function PlayerManager({
     const nextTierMap = { A: 'B', B: 'C', C: 'A' };
     const nextTier = nextTierMap[player.tier] || 'B';
     if (onUpdatePlayer) onUpdatePlayer(player.id, { tier: nextTier });
+  };
+
+  const handleGenderToggle = (player) => {
+    const nextGender = player.gender === 'F' ? 'M' : 'F';
+    if (onUpdatePlayer) onUpdatePlayer(player.id, { gender: nextGender });
   };
 
   const handleAvatarUpload = (player, e) => {
@@ -76,10 +82,10 @@ export default function PlayerManager({
         <div className="space-y-1 text-center md:text-left">
           <div className="flex items-center justify-center md:justify-start gap-2">
             <Users className="w-6 h-6 text-[#3182f6] flex-shrink-0" />
-            <h2 className="font-extrabold text-xl text-[#191f28] whitespace-nowrap">참석자 명단 및 경기수/휴식 편집</h2>
+            <h2 className="font-extrabold text-xl text-[#191f28] whitespace-nowrap">참석자 명단 및 성별/실력 관리</h2>
           </div>
           <p className="text-xs text-[#8b95a1] max-w-lg font-medium">
-            각 선수의 경기 수(🎮)와 휴식 수(💤)를 [+] [-] 버튼으로 자유롭게 수동 변경할 수 있습니다.
+            성별(남 ♂️ / 여 ♀️) 및 A·B·C 등급을 지정하여 극강의 밸런스 대진을 구성합니다. (남성 +0.5pt 실력 보정 가산)
           </p>
         </div>
 
@@ -109,7 +115,7 @@ export default function PlayerManager({
         </div>
       </div>
 
-      {/* Input Bar */}
+      {/* Input Bar (성별 선택 추가) */}
       <form onSubmit={handleAdd} className="tds-card p-4 flex flex-col sm:flex-row items-center gap-3 border border-[#e5e8eb]">
         <input
           type="text"
@@ -119,13 +125,40 @@ export default function PlayerManager({
           className="w-full sm:flex-1 px-4 py-3 bg-[#f2f4f6] border border-[#e5e8eb] rounded-xl text-sm text-[#191f28] placeholder-[#8b95a1] outline-none focus:border-[#3182f6] transition font-semibold"
         />
 
+        {/* Gender Selector */}
+        <div className="flex items-center gap-1 bg-[#f2f4f6] p-1.5 rounded-xl border border-[#e5e8eb] w-full sm:w-auto justify-center whitespace-nowrap">
+          <button
+            type="button"
+            onClick={() => setNewGender('M')}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+              newGender === 'M'
+                ? 'bg-[#3182f6] text-white shadow-sm'
+                : 'text-[#4e5968] hover:text-[#191f28]'
+            }`}
+          >
+            남 ♂️
+          </button>
+          <button
+            type="button"
+            onClick={() => setNewGender('F')}
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+              newGender === 'F'
+                ? 'bg-rose-500 text-white shadow-sm'
+                : 'text-[#4e5968] hover:text-[#191f28]'
+            }`}
+          >
+            여 ♀️
+          </button>
+        </div>
+
+        {/* Tier Selector */}
         <div className="flex items-center gap-1 bg-[#f2f4f6] p-1.5 rounded-xl border border-[#e5e8eb] w-full sm:w-auto justify-center whitespace-nowrap">
           {['A', 'B', 'C'].map((tier) => (
             <button
               key={tier}
               type="button"
               onClick={() => setNewTier(tier)}
-              className={`px-4 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition whitespace-nowrap ${
                 newTier === tier
                   ? 'bg-[#3182f6] text-white shadow-sm'
                   : 'text-[#4e5968] hover:text-[#191f28]'
@@ -146,7 +179,7 @@ export default function PlayerManager({
         </button>
       </form>
 
-      {/* Header (중복 전체 삭제 버튼 단일화 완료) */}
+      {/* Header */}
       <div className="flex items-center justify-between px-2">
         <h3 className="font-bold text-base text-[#191f28] whitespace-nowrap">
           참가자 리스트 ({safePlayers.length}명)
@@ -171,6 +204,7 @@ export default function PlayerManager({
             const isPresent = player.isPresent !== false;
             const name = player.name || '무명';
             const tier = player.tier || 'B';
+            const gender = player.gender || 'M';
             const gamesPlayed = player.gamesPlayed || 0;
             const consecutiveRest = player.consecutiveRest || 0;
 
@@ -189,7 +223,7 @@ export default function PlayerManager({
                 <div className="flex items-center justify-between mb-3">
                   <button
                     onClick={() => onTogglePresent && onTogglePresent(player.id)}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition whitespace-nowrap ${
                       isPresent
                         ? 'bg-[#e8f3ff] text-[#1b64da]'
                         : 'bg-gray-100 text-gray-500'
@@ -200,20 +234,34 @@ export default function PlayerManager({
                     <span className="whitespace-nowrap">{isPresent ? '참석' : '불참'}</span>
                   </button>
 
-                  <button
-                    onClick={() => handleTierCycle(player)}
-                    className={`px-3 py-1 rounded-xl font-bold text-xs flex items-center gap-1 ${badgeBg} hover:scale-105 transition whitespace-nowrap`}
-                    title="클릭하여 등급 변경 (A->B->C)"
-                  >
-                    <Shield className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="whitespace-nowrap">{tier} 등급</span>
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {/* Gender Toggle Badge */}
+                    <button
+                      onClick={() => handleGenderToggle(player)}
+                      className={`px-2 py-1 rounded-xl font-bold text-xs flex items-center gap-0.5 transition ${
+                        gender === 'F' ? 'bg-rose-100 text-rose-700' : 'bg-blue-100 text-blue-800'
+                      }`}
+                      title="클릭하여 성별 전환 (남<->여)"
+                    >
+                      <span>{gender === 'F' ? '여 ♀️' : '남 ♂️'}</span>
+                    </button>
+
+                    {/* Tier Badge */}
+                    <button
+                      onClick={() => handleTierCycle(player)}
+                      className={`px-2.5 py-1 rounded-xl font-bold text-xs flex items-center gap-1 ${badgeBg} hover:scale-105 transition whitespace-nowrap`}
+                      title="클릭하여 등급 변경 (A->B->C)"
+                    >
+                      <Shield className="w-3 h-3 flex-shrink-0" />
+                      <span className="whitespace-nowrap">{tier}급</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Player Profile Info */}
-                <div className="flex items-center gap-3.5 my-2 min-w-0">
+                <div className="flex items-center gap-3 my-1 min-w-0">
                   <label className="relative cursor-pointer group flex-shrink-0">
-                    <div className="w-12 h-12 rounded-2xl bg-[#f2f4f6] border border-[#e5e8eb] overflow-hidden flex items-center justify-center text-[#191f28] font-bold text-sm shadow-inner">
+                    <div className="w-11 h-11 rounded-2xl bg-[#f2f4f6] border border-[#e5e8eb] overflow-hidden flex items-center justify-center text-[#191f28] font-bold text-sm shadow-inner">
                       {player.avatar ? (
                         <img src={player.avatar} alt={name} className="w-full h-full object-cover" />
                       ) : (
@@ -232,13 +280,17 @@ export default function PlayerManager({
                   </label>
 
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-base text-[#191f28] truncate">{name}</h3>
+                    <h3 className="font-bold text-base text-[#191f28] truncate flex items-center gap-1">
+                      <span>{name}</span>
+                      <span className="text-xs font-semibold text-[#8b95a1]">
+                        ({gender === 'F' ? '여' : '남'})
+                      </span>
+                    </h3>
                   </div>
                 </div>
 
                 {/* EDITABLE GAMES PLAYED & REST COUNT CONTROLLERS */}
                 <div className="space-y-2 my-2 p-2.5 rounded-2xl bg-[#f9fafb] border border-[#e5e8eb] text-xs">
-                  {/* Games Played Controller */}
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-[#3182f6] whitespace-nowrap">🎮 경기 수</span>
                     <div className="flex items-center gap-1.5 whitespace-nowrap">
@@ -269,7 +321,6 @@ export default function PlayerManager({
                     </div>
                   </div>
 
-                  {/* Consecutive Rest Controller */}
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-amber-600 whitespace-nowrap">💤 휴식 수</span>
                     <div className="flex items-center gap-1.5 whitespace-nowrap">

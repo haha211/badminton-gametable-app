@@ -34,7 +34,6 @@ export default function App() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isWebInfoModalOpen, setIsWebInfoModalOpen] = useState(false);
 
-  // 1. Supabase Realtime DB 초기 수신 및 스마트폰 복귀 시 자동 재동기화
   useEffect(() => {
     if (isSupabaseConfigured) {
       const syncRemoteData = () => {
@@ -53,7 +52,6 @@ export default function App() {
         }
       });
 
-      // 스마트폰 화면을 껐다 켜거나 탭으로 복귀했을 때 즉시 최신 데이터 재수신
       const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') {
           syncRemoteData();
@@ -83,7 +81,6 @@ export default function App() {
     }
   };
 
-  // 2. 세션 동기화 헬퍼 (로컬스토리지 및 Supabase DB에 항상 동시 반영)
   const syncSession = (newPlayers, newActive, newNext, newResting, newHistory, newEnabled) => {
     const p = newPlayers !== undefined ? newPlayers : players;
     const ac = newActive !== undefined ? newActive : activeCourts;
@@ -282,7 +279,8 @@ export default function App() {
     syncSession(updatedPlayers, updatedCourts, predicted, restingPlayers, history, enabledCourts);
   };
 
-  const handleAddPlayer = (name, tier) => {
+  // 선수 추가 (성별 gender 인자 반영)
+  const handleAddPlayer = (name, tier = 'B', gender = 'M') => {
     if (players.length >= 16) {
       alert('최대 인원은 16명까지입니다.');
       return;
@@ -290,6 +288,7 @@ export default function App() {
     const newPlayer = {
       id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
       name,
+      gender,
       tier,
       isPresent: true,
       gamesPlayed: 0,
@@ -349,6 +348,7 @@ export default function App() {
         newItems.push({
           id: `p_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           name: item.name,
+          gender: item.gender || 'M',
           tier: item.tier || 'B',
           isPresent: true,
           gamesPlayed: 0,

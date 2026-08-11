@@ -31,7 +31,7 @@ export default function CourtBoard({
             코트별 대진 현황
           </h2>
           <span className="text-xs font-bold text-[#8b95a1] ml-1 whitespace-nowrap">
-            ({enabledCourts.length}개 코트 가동 중)
+            ({enabledCourts.length}개 코트 가동 중 · 남성 +0.5pt 가중치 반영)
           </span>
         </div>
 
@@ -180,7 +180,7 @@ export default function CourtBoard({
         </div>
       </div>
 
-      {/* SECTION 2: NEXT ROUND PREVIEW QUEUE (반응형 삐져나옴 완벽 수정) */}
+      {/* SECTION 2: NEXT ROUND PREVIEW QUEUE */}
       {safeNextCourts.length > 0 && (
         <div className="tds-card p-4 sm:p-6 border border-[#e5e8eb] space-y-4 overflow-hidden">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-[#e5e8eb]">
@@ -224,14 +224,14 @@ export default function CourtBoard({
                     <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#e5e8eb] min-w-0">
                       <span className="font-bold text-[#3182f6] whitespace-nowrap flex-shrink-0 mr-1.5">Team A</span>
                       <span className="text-[#191f28] font-semibold truncate text-right">
-                        {t1.map((p) => `${p.name || '선수'}(${p.tier || 'B'})`).join(' + ')}
+                        {t1.map((p) => `${p.name || '선수'}(${p.gender === 'F' ? '여' : '남'}${p.tier || 'B'})`).join(' + ')}
                       </span>
                     </div>
                     <div className="text-center text-[10px] font-bold text-[#8b95a1] whitespace-nowrap">VS</div>
                     <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#e5e8eb] min-w-0">
                       <span className="font-bold text-[#3182f6] whitespace-nowrap flex-shrink-0 mr-1.5">Team B</span>
                       <span className="text-[#191f28] font-semibold truncate text-right">
-                        {t2.map((p) => `${p.name || '선수'}(${p.tier || 'B'})`).join(' + ')}
+                        {t2.map((p) => `${p.name || '선수'}(${p.gender === 'F' ? '여' : '남'}${p.tier || 'B'})`).join(' + ')}
                       </span>
                     </div>
                   </div>
@@ -260,10 +260,10 @@ export default function CourtBoard({
               if (!p) return null;
               return (
                 <div key={p.id || Math.random()} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#f2f4f6] border border-[#e5e8eb] text-xs whitespace-nowrap">
-                  <span className="w-4 h-4 rounded font-bold text-[9px] flex items-center justify-center bg-[#3182f6] text-white flex-shrink-0">
-                    {p.tier || 'B'}
+                  <span className={`w-4 h-4 rounded font-bold text-[9px] flex items-center justify-center text-white flex-shrink-0 ${p.gender === 'F' ? 'bg-rose-500' : 'bg-[#3182f6]'}`}>
+                    {p.gender === 'F' ? '여' : '남'}
                   </span>
-                  <span className="font-bold text-[#191f28]">{p.name || '무명'}</span>
+                  <span className="font-bold text-[#191f28]">{p.name || '무명'} ({p.tier || 'B'})</span>
                   <span className="text-[10px] font-bold text-[#3182f6]">🎮{p.gamesPlayed || 0}</span>
                   <span className="text-[10px] font-bold text-amber-600">💤{p.consecutiveRest || 0}</span>
                 </div>
@@ -286,11 +286,12 @@ export default function CourtBoard({
   );
 }
 
-// TOSS COURT PLAYER CHIP
+// TOSS COURT PLAYER CHIP (성별 아이콘 반영)
 function TossCourtPlayerChip({ player }) {
   if (!player) return null;
   const name = player.name || '무명';
   const tier = player.tier || 'B';
+  const gender = player.gender || 'M';
   const gamesPlayed = player.gamesPlayed || 0;
   const consecutiveRest = player.consecutiveRest || 0;
 
@@ -314,6 +315,9 @@ function TossCourtPlayerChip({ player }) {
       <div className="flex-1 min-w-0">
         <div className="font-bold text-xs text-[#191f28] truncate flex items-center gap-0.5">
           <span className="truncate">{name}</span>
+          <span className={`text-[10px] font-bold ${gender === 'F' ? 'text-rose-500' : 'text-blue-600'}`}>
+            {gender === 'F' ? '♀' : '♂'}
+          </span>
           {player.consecutivePlayed > 1 && (
             <Flame className="w-3 h-3 text-red-500 animate-pulse flex-shrink-0" title="연속 출전 중" />
           )}
