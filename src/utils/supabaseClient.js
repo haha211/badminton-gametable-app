@@ -1,12 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+// URL 끝에 슬래시(/)가 들어가지 않도록 자동 정제
+const rawUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+const supabaseUrl = rawUrl.trim().replace(/\/+$/, '');
+const supabaseAnonKey = rawKey.trim();
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
+// Supabase 헤더에 apikey 및 Authorization 명시적 강제 주입
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${supabaseAnonKey}`,
+        },
+      },
       realtime: {
         params: {
           eventsPerSecond: 30,
@@ -18,7 +29,7 @@ export const supabase = isSupabaseConfigured
 const SESSION_ROOM_ID = 'default_badminton_room';
 
 let globalChannel = null;
-export let lastDbStatus = 'checking'; // 'ok', 'error', 'checking'
+export let lastDbStatus = 'checking';
 export let lastErrorMessage = '';
 
 /**
