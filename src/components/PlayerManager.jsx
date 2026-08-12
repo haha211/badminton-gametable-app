@@ -257,7 +257,7 @@ export default function PlayerManager({
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => handleGenderToggle(player)}
-                      className={`px-1.5 py-0.5 rounded-lg font-bold text-[11px] flex items-center gap-0.5 transition ${
+                      className={`px-2 py-0.5 rounded-lg font-bold text-[11px] inline-flex items-center justify-center leading-none transition ${
                         gender === 'F' ? 'bg-rose-100 text-rose-700' : 'bg-blue-100 text-blue-800'
                       }`}
                     >
@@ -266,7 +266,7 @@ export default function PlayerManager({
 
                     <button
                       onClick={() => handleTierCycle(player)}
-                      className={`px-2 py-0.5 rounded-lg font-bold text-[11px] flex items-center gap-1 ${badgeBg} hover:scale-105 transition whitespace-nowrap`}
+                      className={`px-2 py-0.5 rounded-lg font-bold text-[11px] inline-flex items-center justify-center leading-none ${badgeBg} hover:scale-105 transition whitespace-nowrap`}
                     >
                       <span>{tier}급</span>
                     </button>
@@ -292,8 +292,16 @@ export default function PlayerManager({
                   </label>
 
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-base text-[#191f28] truncate flex items-center gap-1">
-                      <span>{name}</span>
+                    <h3 className="font-bold text-base text-[#191f28] truncate flex items-center gap-1.5">
+                      <span className="truncate">{name}</span>
+                      <span
+                        className={`inline-flex items-center justify-center text-[11px] font-extrabold flex-shrink-0 leading-none ${
+                          gender === 'F' ? 'text-rose-500' : 'text-blue-600'
+                        }`}
+                        style={{ transform: 'translateY(-0.5px)' }}
+                      >
+                        {gender === 'F' ? '♀' : '♂'}
+                      </span>
                       {player.isLate && (
                         <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[9px] whitespace-nowrap flex items-center gap-0.5">
                           <Clock className="w-2.5 h-2.5" /> 지각자

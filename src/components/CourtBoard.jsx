@@ -295,7 +295,7 @@ export default function CourtBoard({
         </div>
       )}
 
-      {/* SECTION 4: RESTING PLAYERS (누적 총 휴식 횟수 표기) */}
+      {/* SECTION 4: RESTING PLAYERS */}
       {safeResting.length > 0 && (
         <div className="tds-card p-3.5 sm:p-5 border border-[#e5e8eb] overflow-hidden">
           <div className="flex items-center justify-between mb-2.5">
@@ -315,7 +315,7 @@ export default function CourtBoard({
 
               return (
                 <div key={p.id || Math.random()} className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-[#f2f4f6] border border-[#e5e8eb] text-xs whitespace-nowrap">
-                  <span className={`w-3.5 h-3.5 rounded font-bold text-[8px] flex items-center justify-center text-white flex-shrink-0 ${p.gender === 'F' ? 'bg-rose-500' : 'bg-[#3182f6]'}`}>
+                  <span className={`w-3.5 h-3.5 rounded font-bold text-[9px] inline-flex items-center justify-center text-white flex-shrink-0 leading-none ${p.gender === 'F' ? 'bg-rose-500' : 'bg-[#3182f6]'}`}>
                     {p.gender === 'F' ? '여' : '남'}
                   </span>
                   <span className="font-bold text-[#191f28]">{p.name || '무명'} ({p.tier || 'B'})</span>
@@ -399,7 +399,7 @@ export default function CourtBoard({
   );
 }
 
-// TOSS COURT PLAYER CHIP
+// TOSS COURT PLAYER CHIP (성별 아이콘 수직 중앙 정렬 완벽 수리)
 function TossCourtPlayerChip({ player, onTriggerSwap }) {
   if (!player) return null;
   const name = player.name || '무명';
@@ -426,17 +426,23 @@ function TossCourtPlayerChip({ player, onTriggerSwap }) {
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="font-bold text-xs text-[#191f28] truncate flex items-center gap-0.5 justify-between">
-          <div className="flex items-center gap-0.5 min-w-0 truncate">
+        <div className="font-bold text-xs text-[#191f28] truncate flex items-center justify-between">
+          <div className="flex items-center gap-1 min-w-0 truncate">
             <span className="truncate">{name}</span>
-            <span className={`text-[9px] font-bold ${gender === 'F' ? 'text-rose-500' : 'text-blue-600'}`}>
+            {/* 성별 기호 수직 중앙 정렬 100% 칼조율 (inline-flex leading-none) */}
+            <span
+              className={`inline-flex items-center justify-center leading-none text-[10px] font-extrabold flex-shrink-0 ${
+                gender === 'F' ? 'text-rose-500' : 'text-blue-600'
+              }`}
+              style={{ transform: 'translateY(-0.5px)' }}
+            >
               {gender === 'F' ? '♀' : '♂'}
             </span>
           </div>
 
           <button
             onClick={onTriggerSwap}
-            className="p-1 rounded bg-[#e8f3ff] text-[#1b64da] hover:bg-blue-200 transition flex-shrink-0 ml-1"
+            className="p-1 rounded bg-[#e8f3ff] text-[#1b64da] hover:bg-blue-200 transition flex-shrink-0 ml-0.5"
             title="다른 코트 경기 출전 선수와 코트 위치 맞교체"
           >
             <ArrowLeftRight className="w-3 h-3" />
