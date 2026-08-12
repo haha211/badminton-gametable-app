@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Copy, Check, Share2 } from 'lucide-react';
+import { Share2, Copy, Check, X, Trophy, UserCheck } from 'lucide-react';
 
 export default function ShareModal({ isOpen, onClose, courts = [], restingPlayers = [] }) {
   const [copied, setCopied] = useState(false);
@@ -9,80 +9,98 @@ export default function ShareModal({ isOpen, onClose, courts = [], restingPlayer
   const safeCourts = Array.isArray(courts) ? courts : [];
   const safeResting = Array.isArray(restingPlayers) ? restingPlayers : [];
 
-  let textContent = `🏸 [오늘의 배드민턴 코트 대진표] 🏸\n`;
-  textContent += `---------------------------------\n`;
+  const formatShareText = () => {
+    let text = `🏸 [배드민턴 모임 실시간 대진표]\n`;
+    text += `───────────────\n`;
 
-  if (safeCourts.length === 0) {
-    textContent += `아직 대진표가 구성되지 않았습니다.\n`;
-  } else {
     safeCourts.forEach((c) => {
       if (!c) return;
-      const team1 = Array.isArray(c.team1) ? c.team1 : [];
-      const team2 = Array.isArray(c.team2) ? c.team2 : [];
+      const t1 = Array.isArray(c.team1)
+        ? c.team1.map((p) => `${p.name}(${p.gender === 'F' ? '여' : '남'}${p.tier})`).join('+')
+        : '대기';
+      const t2 = Array.isArray(c.team2)
+        ? c.team2.map((p) => `${p.name}(${p.gender === 'F' ? '여' : '남'}${p.tier})`).join('+')
+        : '대기';
 
-      const t1Names = team1.map((p) => `${p.name || '선수'}(${p.tier || 'B'})`).join(', ');
-      const t2Names = team2.map((p) => `${p.name || '선수'}(${p.tier || 'B'})`).join(', ');
-      textContent += `📌 [${c.name || '코트'}] : ${t1Names}  VS  ${t2Names}\n`;
+      text += `📍 ${c.name || `${c.id}번 코트`}\n`;
+      text += `   ${t1}  VS  ${t2}\n\n`;
     });
-  }
 
-  textContent += `---------------------------------\n`;
-  if (safeResting.length > 0) {
-    const restNames = safeResting.map((p) => `${p.name || '선수'}(${p.tier || 'B'})`).join(', ');
-    textContent += `⏳ 휴식 / 다음 대기: ${restNames}\n`;
-  } else {
-    textContent += `⏳ 휴식: 없음 (전원 출전 중)\n`;
-  }
-  textContent += `---------------------------------\n`;
-  textContent += `배드민턴 게임판 프로그램으로 자동 생성됨`;
+    if (safeResting.length > 0) {
+      text += `💤 [현재 휴식 및 대기자 명단 (${safeResting.length}명)]\n`;
+      const restingNames = safeResting
+        .map((p) => `${p.name}(${p.gender === 'F' ? '여' : '남'})`)
+        .join(', ');
+      text += `   ${restingNames}\n`;
+    }
+
+    text += `───────────────\n`;
+    text += `📱 실시간 대진판 확인: ${window.location.href}`;
+    return text;
+  };
+
+  const shareText = formatShareText();
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(textContent);
+    navigator.clipboard.writeText(shareText);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fadeIn">
-      <div className="tds-card w-full max-w-lg border border-[#e5e8eb] shadow-2xl overflow-hidden flex flex-col bg-white">
+      <div className="tds-card w-full max-w-md border border-[#e5e8eb] shadow-2xl overflow-hidden flex flex-col bg-white">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-[#e5e8eb] flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-[#e5e8eb] flex items-center justify-between bg-[#f8fafc]">
           <div className="flex items-center gap-2">
             <Share2 className="w-5 h-5 text-[#3182f6]" />
-            <h2 className="font-bold text-base text-[#191f28]">단톡방 / 카카오톡 공유 텍스트</h2>
+            <h3 className="font-bold text-base text-[#191f28]">카카오톡 대진표 공유</h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[#8b95a1] hover:text-[#191f28] hover:bg-[#f2f4f6] transition"
+            className="p-1 rounded-lg text-[#8b95a1] hover:text-[#191f28] transition"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Text Area */}
-        <div className="p-6 space-y-4">
+        {/* Content Preview */}
+        <div className="p-5 space-y-4">
+          <p className="text-xs text-[#4e5968] font-medium">
+            아래 텍스트를 복사하여 동호회 카카오톡 단톡방에 바로 공유하실 수 있습니다.
+          </p>
+
           <textarea
             readOnly
+            value={shareText}
             rows={10}
-            value={textContent}
-            className="w-full p-3.5 bg-[#f2f4f6] border border-[#e5e8eb] rounded-2xl text-xs text-[#191f28] font-mono leading-relaxed outline-none"
+            className="w-full p-3 bg-[#f2f4f6] border border-[#e5e8eb] rounded-xl text-xs text-[#191f28] font-mono outline-none resize-none"
           />
         </div>
 
-        {/* Footer */}
-        <div className="p-4 bg-[#f9fafb] border-t border-[#e5e8eb] flex items-center justify-between">
+        {/* Actions */}
+        <div className="p-4 bg-[#f9fafb] border-t border-[#e5e8eb] flex items-center justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-semibold text-[#8b95a1] hover:text-[#191f28] transition"
+            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-[#f2f4f6] text-[#4e5968] hover:bg-gray-200 transition"
           >
             닫기
           </button>
           <button
             onClick={handleCopy}
-            className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#3182f6] text-white hover:bg-[#2272eb] transition shadow-md flex items-center gap-1.5"
+            className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#3182f6] text-white hover:bg-[#2272eb] transition shadow flex items-center gap-1.5"
           >
-            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            <span>{copied ? '복사 완료!' : '카톡 공유용 텍스트 복사'}</span>
+            {copied ? (
+              <>
+                <Check className="w-4 h-4 text-white" />
+                <span>복사 완료!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4" />
+                <span>카톡 텍스트 복사</span>
+              </>
+            )}
           </button>
         </div>
       </div>

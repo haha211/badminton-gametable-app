@@ -150,150 +150,163 @@ export default function App() {
   };
 
   const handleGenerateMatches = (overrideCourts = enabledCourts) => {
-    const activeList = players.filter((p) => p.isPresent !== false && p.isWantRest !== true);
-    if (activeList.length < 4) {
-      alert('경기를 진행하려면 최소 4명의 출전 가능 참가자가 필요합니다. (휴식 요청/불참자 확인)');
-      return;
-    }
+    try {
+      const activeList = players.filter((p) => p && p.isPresent !== false && p.isWantRest !== true);
+      if (activeList.length < 4) {
+        alert('경기를 진행하려면 최소 4명의 출전 가능 참가자가 필요합니다. (휴식 요청/불참자 확인)');
+        return;
+      }
 
-    const result = generateMatches(players, overrideCourts, history);
-    if (!result.success) {
-      alert(result.message);
-      return;
-    }
+      const result = generateMatches(players, overrideCourts, history);
+      if (!result.success) {
+        alert(result.message);
+        return;
+      }
 
-    const playingPlayerIds = new Set(
-      result.courts.flatMap((c) => [...c.team1, ...c.team2].map((p) => p.id))
-    );
+      const playingPlayerIds = new Set(
+        (result.courts || []).flatMap((c) =>
+          [...(c?.team1 || []), ...(c?.team2 || [])].map((p) => p?.id).filter(Boolean)
+        )
+      );
 
-    const updatedPlayers = players.map((p) => {
-      if (p.isPresent === false) return p;
+      const updatedPlayers = players.map((p) => {
+        if (!p || p.isPresent === false) return p;
 
-      if (playingPlayerIds.has(p.id)) {
-        return {
-          ...p,
-          gamesPlayed: (p.gamesPlayed || 0) + 1,
-          consecutivePlayed: (p.consecutivePlayed || 0) + 1,
-          consecutiveRest: 0,
-        };
-      } else {
-        if (p.isWantRest === true) {
+        if (playingPlayerIds.has(p.id)) {
           return {
             ...p,
+            gamesPlayed: (p.gamesPlayed || 0) + 1,
+            consecutivePlayed: (p.consecutivePlayed || 0) + 1,
+            consecutiveRest: 0,
+          };
+        } else {
+          if (p.isWantRest === true) {
+            return {
+              ...p,
+              consecutivePlayed: 0,
+            };
+          }
+          return {
+            ...p,
+            totalRestCount: (p.totalRestCount || 0) + 1,
+            consecutiveRest: (p.consecutiveRest || 0) + 1,
             consecutivePlayed: 0,
           };
         }
-        return {
-          ...p,
-          totalRestCount: (p.totalRestCount || 0) + 1,
-          consecutiveRest: (p.consecutiveRest || 0) + 1,
-          consecutivePlayed: 0,
-        };
-      }
-    });
+      });
 
-    const updatedRestingPlayers = updatedPlayers.filter(
-      (p) => p.isPresent !== false && (!playingPlayerIds.has(p.id) || p.isWantRest === true)
-    );
+      const updatedRestingPlayers = updatedPlayers.filter(
+        (p) => p && p.isPresent !== false && (!playingPlayerIds.has(p.id) || p.isWantRest === true)
+      );
 
-    const updatedHistory = [...history, ...result.courts];
+      const updatedHistory = [...history, ...(result.courts || [])];
 
-    const predicted = predictNextRound(updatedPlayers, result.courts, overrideCourts, updatedHistory);
+      const predicted = predictNextRound(updatedPlayers, result.courts, overrideCourts, updatedHistory);
 
-    setPlayers(updatedPlayers);
-    setActiveCourts(result.courts);
-    setRestingPlayers(updatedRestingPlayers);
-    setNextCourts(predicted);
-    setHistory(updatedHistory);
-    setActiveTab('courts');
+      setPlayers(updatedPlayers);
+      setActiveCourts(result.courts || []);
+      setRestingPlayers(updatedRestingPlayers);
+      setNextCourts(predicted);
+      setHistory(updatedHistory);
+      setActiveTab('courts');
 
-    syncSession(updatedPlayers, result.courts, predicted, updatedRestingPlayers, updatedHistory, overrideCourts);
+      syncSession(updatedPlayers, result.courts || [], predicted, updatedRestingPlayers, updatedHistory, overrideCourts);
+    } catch (err) {
+      console.error('handleGenerateMatches Exception:', err);
+      alert('대진표를 생성하는 중 오류가 발생하였습니다: ' + err.message);
+    }
   };
 
   const handleRotateSingleCourt = (courtId) => {
-    const activeList = players.filter((p) => p.isPresent !== false && p.isWantRest !== true);
-    if (activeList.length < 4) return;
+    try {
+      const activeList = players.filter((p) => p && p.isPresent !== false && p.isWantRest !== true);
+      if (activeList.length < 4) return;
 
-    const playingOtherCourtPlayerIds = new Set(
-      activeCourts
-        .filter((c) => c.id !== courtId)
-        .flatMap((c) => [...c.team1, ...c.team2].map((p) => p.id))
-    );
+      const playingOtherCourtPlayerIds = new Set(
+        activeCourts
+          .filter((c) => c && c.id !== courtId)
+          .flatMap((c) => [...(c?.team1 || []), ...(c?.team2 || [])].map((p) => p?.id).filter(Boolean))
+      );
 
-    const availableForThisCourt = activeList.filter((p) => !playingOtherCourtPlayerIds.has(p.id));
+      const availableForThisCourt = activeList.filter((p) => !playingOtherCourtPlayerIds.has(p.id));
 
-    if (availableForThisCourt.length < 4) {
-      alert('대기 중인 인원이 부족합니다. (최소 4명 필요)');
-      return;
-    }
-
-    const sorted = [...availableForThisCourt].sort((a, b) => {
-      const pDiff = (a.gamesPlayed || 0) - (b.gamesPlayed || 0);
-      if (pDiff !== 0) return pDiff;
-      const restA = (a.totalRestCount || 0) + (a.consecutiveRest || 0);
-      const restB = (b.totalRestCount || 0) + (b.consecutiveRest || 0);
-      if (restB !== restA) return restB - restA;
-      return (a.createdAt || 0) - (b.createdAt || 0);
-    });
-
-    const fourPlayers = sorted.slice(0, 4);
-    const match = getBestDoubleMatch(fourPlayers, history);
-
-    const newCourtData = {
-      id: courtId,
-      name: `${courtId}번 코트`,
-      status: 'playing',
-      team1: match.team1,
-      team2: match.team2,
-      t1Score: match.t1Score,
-      t2Score: match.t2Score,
-      scoreDiff: match.scoreDiff,
-    };
-
-    const updatedCourts = activeCourts.map((c) => (c.id === courtId ? newCourtData : c));
-    if (!activeCourts.some((c) => c.id === courtId)) {
-      updatedCourts.push(newCourtData);
-    }
-
-    const allPlayingPlayerIds = new Set(
-      updatedCourts.flatMap((c) => [...(c.team1 || []), ...(c.team2 || [])].map((p) => p.id))
-    );
-
-    const updatedPlayers = players.map((p) => {
-      if (p.isPresent === false) return p;
-
-      if (allPlayingPlayerIds.has(p.id)) {
-        return {
-          ...p,
-          gamesPlayed: (p.gamesPlayed || 0) + 1,
-          consecutivePlayed: (p.consecutivePlayed || 0) + 1,
-          consecutiveRest: 0,
-        };
-      } else {
-        if (p.isWantRest === true) return p;
-        return {
-          ...p,
-          totalRestCount: (p.totalRestCount || 0) + 1,
-          consecutiveRest: (p.consecutiveRest || 0) + 1,
-          consecutivePlayed: 0,
-        };
+      if (availableForThisCourt.length < 4) {
+        alert('대기 중인 인원이 부족합니다. (최소 4명 필요)');
+        return;
       }
-    });
 
-    const updatedRestingPlayers = updatedPlayers.filter(
-      (p) => p.isPresent !== false && (!allPlayingPlayerIds.has(p.id) || p.isWantRest === true)
-    );
+      const sorted = [...availableForThisCourt].sort((a, b) => {
+        const pDiff = (a.gamesPlayed || 0) - (b.gamesPlayed || 0);
+        if (pDiff !== 0) return pDiff;
+        const restA = (a.totalRestCount || 0) + (a.consecutiveRest || 0);
+        const restB = (b.totalRestCount || 0) + (b.consecutiveRest || 0);
+        if (restB !== restA) return restB - restA;
+        return (a.createdAt || 0) - (b.createdAt || 0);
+      });
 
-    const updatedHistory = [...history, newCourtData];
-    const predicted = predictNextRound(updatedPlayers, updatedCourts, enabledCourts, updatedHistory);
+      const fourPlayers = sorted.slice(0, 4);
+      const match = getBestDoubleMatch(fourPlayers, history);
 
-    setPlayers(updatedPlayers);
-    setActiveCourts(updatedCourts);
-    setRestingPlayers(updatedRestingPlayers);
-    setNextCourts(predicted);
-    setHistory(updatedHistory);
+      if (!match) return;
 
-    syncSession(updatedPlayers, updatedCourts, predicted, updatedRestingPlayers, updatedHistory, enabledCourts);
+      const newCourtData = {
+        id: courtId,
+        name: `${courtId}번 코트`,
+        status: 'playing',
+        team1: match.team1,
+        team2: match.team2,
+        t1Score: match.t1Score,
+        t2Score: match.t2Score,
+        scoreDiff: match.scoreDiff,
+      };
+
+      const updatedCourts = activeCourts.map((c) => (c.id === courtId ? newCourtData : c));
+      if (!activeCourts.some((c) => c.id === courtId)) {
+        updatedCourts.push(newCourtData);
+      }
+
+      const allPlayingPlayerIds = new Set(
+        updatedCourts.flatMap((c) => [...(c?.team1 || []), ...(c?.team2 || [])].map((p) => p?.id).filter(Boolean))
+      );
+
+      const updatedPlayers = players.map((p) => {
+        if (!p || p.isPresent === false) return p;
+
+        if (allPlayingPlayerIds.has(p.id)) {
+          return {
+            ...p,
+            gamesPlayed: (p.gamesPlayed || 0) + 1,
+            consecutivePlayed: (p.consecutivePlayed || 0) + 1,
+            consecutiveRest: 0,
+          };
+        } else {
+          if (p.isWantRest === true) return p;
+          return {
+            ...p,
+            totalRestCount: (p.totalRestCount || 0) + 1,
+            consecutiveRest: (p.consecutiveRest || 0) + 1,
+            consecutivePlayed: 0,
+          };
+        }
+      });
+
+      const updatedRestingPlayers = updatedPlayers.filter(
+        (p) => p && p.isPresent !== false && (!allPlayingPlayerIds.has(p.id) || p.isWantRest === true)
+      );
+
+      const updatedHistory = [...history, newCourtData];
+      const predicted = predictNextRound(updatedPlayers, updatedCourts, enabledCourts, updatedHistory);
+
+      setPlayers(updatedPlayers);
+      setActiveCourts(updatedCourts);
+      setRestingPlayers(updatedRestingPlayers);
+      setNextCourts(predicted);
+      setHistory(updatedHistory);
+
+      syncSession(updatedPlayers, updatedCourts, predicted, updatedRestingPlayers, updatedHistory, enabledCourts);
+    } catch (err) {
+      console.error('handleRotateSingleCourt Exception:', err);
+    }
   };
 
   const handleConfirmManualAssign = (courtId, team1, team2) => {
@@ -374,7 +387,6 @@ export default function App() {
     syncSession(players, updatedCourts, predicted, restingPlayers, history, enabledCourts);
   };
 
-  // 지각자 등록 순서 타임스탬프(createdAt) 부여
   const handleAddPlayer = (name, tier = 'B', gender = 'M') => {
     if (players.length >= 16) {
       alert('최대 인원은 16명까지입니다.');
@@ -399,7 +411,7 @@ export default function App() {
       consecutivePlayed: 0,
       consecutiveRest: initialRest,
       totalRestCount: initialRest,
-      createdAt: Date.now(), // 지각자 등록 순서 100% 보장 타임스탬프
+      createdAt: Date.now(),
       wins: 0,
       losses: 0,
       partnerHistory: {},
